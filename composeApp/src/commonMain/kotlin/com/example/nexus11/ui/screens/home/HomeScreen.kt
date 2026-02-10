@@ -4,15 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.BrokenImage
-import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,219 +22,218 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
-// ✅ IMPORTS DE KAMEL (Para cargar imágenes de internet)
-import io.kamel.image.KamelImage
-import io.kamel.image.asyncPainterResource
-
-// ✅ IMPORTS DE DATOS
+import cafe.adriel.voyager.core.screen.Screen
+import cafe.adriel.voyager.navigator.LocalNavigator
+import cafe.adriel.voyager.navigator.currentOrThrow
 import com.example.nexus11.data.DataRepository
 import com.example.nexus11.data.model.Post
-import com.example.nexus11.data.Story // Asegúrate de que este es el paquete correcto de tu Story
-import com.example.nexus11.ui.theme.*
+import com.example.nexus11.ui.screens.post.CreatePostScreen
+import com.example.nexus11.ui.screens.profile.ProfileScreen
+import io.kamel.image.KamelImage
+import io.kamel.image.asyncPainterResource
+import kotlinx.coroutines.launch
 
-@Composable
-fun HomeScreen(
-    onNavigateCreatePost: () -> Unit,
-    onNavigateToUser: (String) -> Unit
-) {
-    val dataRepo = remember { DataRepository() }
+class HomeScreen : Screen {
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    override fun Content() {
+        // Obtenemos el navegador padre para salir de las pestañas al navegar
+        val navigator = LocalNavigator.currentOrThrow.parent ?: LocalNavigator.currentOrThrow
+        val repository = remember { DataRepository() }
+        val scope = rememberCoroutineScope()
 
-    var posts by remember { mutableStateOf<List<Post>>(emptyList()) }
-    var stories by remember { mutableStateOf<List<Story>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
+        var posts by remember { mutableStateOf<List<Post>>(emptyList()) }
+        var isLoading by remember { mutableStateOf(true) }
 
-    // Cargar datos al entrar
-    LaunchedEffect(Unit) {
-        try {
-            posts = dataRepo.getAllPosts()
-            stories = dataRepo.getAllStories()
-        } catch (e: Exception) {
-            println("Error cargando Home: ${e.message}")
-        } finally {
+        // Cargar posts al iniciar
+        LaunchedEffect(Unit) {
+            posts = repository.getAllPosts()
             isLoading = false
         }
-    }
 
-    Box(modifier = Modifier.fillMaxSize().background(NexusBlack)) {
-        if (isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = NexusBlue)
-            }
-        } else {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                // --- SECCIÓN HISTORIAS ---
-                item {
-                    Text(
-                        "Historias",
-                        color = TextWhite,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-                item {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        item { StoryItem("Tú", isAdd = true) }
-                        items(stories) { story ->
-                            StoryItem(name = story.username.ifBlank { "User" }, imageUrl = story.imageUrl)
-                        }
-                    }
-                    Spacer(Modifier.height(24.dp))
-                }
-
-                // --- SECCIÓN POSTS (FEED) ---
-                if (posts.isEmpty()) {
-                    item {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(40.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("No hay publicaciones aún", color = TextGray)
-                        }
-                    }
-                } else {
-                    items(posts) { post ->
-                        PostItem(post, onUserClick = { userId -> onNavigateToUser(userId) })
-                        Spacer(Modifier.height(16.dp)) // Espacio entre posts
-                    }
-                }
-            }
-        }
-
-        // Botón Flotante (FAB)
-        FloatingActionButton(
-            onClick = onNavigateCreatePost,
-            containerColor = NexusBlue,
-            contentColor = Color.White,
-            shape = CircleShape,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp)
-        ) { Icon(Icons.Default.Add, "Nuevo Post") }
-    }
-}
-
-// 📸 COMPONENTE DE HISTORIA
-@Composable
-fun StoryItem(name: String, imageUrl: String? = null, isAdd: Boolean = false) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            modifier = Modifier
-                .size(70.dp)
-                .clip(CircleShape)
-                .background(if (isAdd) NexusDarkGray else NexusBlue) // Borde azul si es historia
-                .padding(3.dp)
-                .clip(CircleShape)
-                .background(NexusBlack),
-            contentAlignment = Alignment.Center
-        ) {
-            if (isAdd) {
-                Icon(Icons.Default.Add, null, tint = NexusBlue)
-            } else if (!imageUrl.isNullOrBlank()) {
-                KamelImage(
-                    resource = asyncPainterResource(imageUrl),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                    onLoading = { CircularProgressIndicator(strokeWidth = 2.dp, color = NexusBlue) }
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Nexus 11 Feed") }
+                    // ❌ Sin actions (el chat está abajo)
                 )
-            } else {
-                // Placeholder si no hay imagen
-                Icon(Icons.Default.Image, null, tint = TextGray)
+            },
+            floatingActionButton = {
+                FloatingActionButton(onClick = { navigator.push(CreatePostScreen()) }) {
+                    Icon(Icons.Default.Add, contentDescription = "Nuevo Post")
+                }
+            }
+        ) { padding ->
+            Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(posts) { post ->
+                            PostCard(
+                                post = post,
+                                onLikeClick = {
+                                    scope.launch {
+                                        repository.likePost(post)
+                                        // Refrescamos la lista para ver el like al instante
+                                        posts = repository.getAllPosts()
+                                    }
+                                },
+                                onCommentSend = { text ->
+                                    scope.launch {
+                                        repository.commentPost(post, text, "Yo")
+                                        posts = repository.getAllPosts()
+                                    }
+                                },
+                                onUserClick = { userId ->
+                                    // ✅ Navegamos al perfil del usuario
+                                    navigator.push(ProfileScreen(userId))
+                                }
+                            )
+                        }
+                    }
+                }
             }
         }
-        Spacer(Modifier.height(6.dp))
-        Text(name.take(8), color = TextWhite, fontSize = 12.sp)
     }
 }
 
-// 📝 COMPONENTE DE POST
 @Composable
-fun PostItem(post: Post, onUserClick: (String) -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().background(NexusBlack)) {
+fun PostCard(
+    post: Post,
+    onLikeClick: () -> Unit,
+    onCommentSend: (String) -> Unit,
+    onUserClick: (String) -> Unit
+) {
+    var commentText by remember { mutableStateOf("") }
 
-        // 1. CABECERA (Avatar y Nombre)
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .clickable { onUserClick(post.userId) },
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(NexusDarkGray),
-                contentAlignment = Alignment.Center
-            ) {
-                // Intentamos cargar avatar, si no, mostramos inicial
-                if (!post.userAvatarUrl.isNullOrBlank()) {
-                    KamelImage(
-                        resource = asyncPainterResource(post.userAvatarUrl),
-                        contentDescription = "Avatar",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Text(
-                        text = post.username.take(1).uppercase(),
-                        color = TextWhite,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            Column {
-                Text(post.username, color = TextWhite, fontWeight = FontWeight.Bold)
-                Text("hace un momento", color = TextGray, fontSize = 12.sp)
-            }
-        }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
 
-        // 2. TEXTO DEL POST
-        if (post.text.isNotEmpty()) {
-            Text(
-                text = post.text,
-                color = TextWhite,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-        }
-
-        // 3. IMAGEN DEL POST (La parte importante) 📸
-        if (!post.imageUrl.isNullOrBlank()) {
-            KamelImage(
-                resource = asyncPainterResource(post.imageUrl),
-                contentDescription = "Imagen del post",
+            // --- CABECERA: AVATAR Y NOMBRE (Clickable) ---
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(300.dp) // Altura fija para evitar saltos
-                    .background(NexusDarkGray), // Fondo gris mientras carga
-                contentScale = ContentScale.Crop,
-                onLoading = {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = NexusBlue)
-                    }
-                },
-                onFailure = {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.BrokenImage, null, tint = Color.Red)
-                            Text("Error al cargar", color = TextGray, fontSize = 10.sp)
-                        }
+                    .clickable { onUserClick(post.userId) } // <--- Click aquí lleva al perfil
+                    .padding(bottom = 8.dp)
+            ) {
+                // Avatar
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color.LightGray),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!post.userAvatarUrl.isNullOrBlank()) {
+                        KamelImage(
+                            resource = asyncPainterResource(post.userAvatarUrl),
+                            contentDescription = "Avatar",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        // Inicial si no hay foto
+                        Text(
+                            text = post.username.take(1).uppercase(),
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
                     }
                 }
-            )
-        }
 
-        // 4. ICONOS DE ACCIÓN (Like, Comentar)
-        Row(Modifier.padding(16.dp)) {
-            Icon(Icons.Default.FavoriteBorder, null, tint = TextWhite, modifier = Modifier.size(28.dp))
-            Spacer(Modifier.width(20.dp))
-            Icon(Icons.Default.ChatBubbleOutline, null, tint = TextWhite, modifier = Modifier.size(28.dp))
-        }
+                Spacer(modifier = Modifier.width(12.dp))
 
-        // Separador
-        HorizontalDivider(color = NexusDarkGray, thickness = 0.5.dp)
+                // Nombre
+                Text(
+                    text = "@${post.username}",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            }
+
+            // --- IMAGEN DEL POST ---
+            if (post.imageUrl.isNotEmpty()) {
+                KamelImage(
+                    resource = asyncPainterResource(post.imageUrl),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(300.dp) // Altura fija para que se vea bien
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.LightGray)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // --- BOTONES DE ACCIÓN (LIKE) ---
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onLikeClick) {
+                    Icon(
+                        imageVector = if (post.likes > 0) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = "Like",
+                        tint = if (post.likes > 0) Color.Red else Color.Gray
+                    )
+                }
+                Text("${post.likes} likes", fontWeight = FontWeight.Bold)
+            }
+
+            // --- DESCRIPCIÓN ---
+            if (post.description.isNotEmpty()) {
+                Text(
+                    text = post.description,
+                    fontSize = 15.sp,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            }
+
+            Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+            // --- LISTA DE COMENTARIOS (Preview) ---
+            if (post.comments.isNotEmpty()) {
+                Text("Comentarios:", fontSize = 12.sp, color = Color.Gray)
+                // Mostramos máximo 3 comentarios para no saturar
+                post.comments.values.take(3).forEach { com ->
+                    Text(com, fontSize = 13.sp, modifier = Modifier.padding(vertical = 1.dp))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // --- CAJA PARA ESCRIBIR COMENTARIO ---
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = commentText,
+                    onValueChange = { commentText = it },
+                    placeholder = { Text("Escribe un comentario...") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent
+                    )
+                )
+                IconButton(
+                    onClick = {
+                        if (commentText.isNotBlank()) {
+                            onCommentSend(commentText)
+                            commentText = "" // Limpiar campo
+                        }
+                    }
+                ) {
+                    Icon(Icons.Default.Send, contentDescription = "Enviar", tint = Color.Blue)
+                }
+            }
+        }
     }
 }

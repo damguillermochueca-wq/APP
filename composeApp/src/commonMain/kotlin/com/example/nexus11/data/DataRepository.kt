@@ -13,12 +13,13 @@ import io.ktor.client.request.forms.submitForm
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.datetime.Clock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
+// Modelo simple para las historias (Stories)
 @Serializable
 data class Story(
     val id: String = "",
@@ -30,12 +31,14 @@ data class Story(
 
 class DataRepository {
 
+    // ⚠️ Asegúrate de que esta URL es EXACTA a la de tu consola de Firebase
     private val dbUrl = "https://nexus11-8388b-default-rtdb.europe-west1.firebasedatabase.app"
 
-    // 🔑 PEGA AQUÍ TU API KEY DE IMGBB QUE COPIASTE
+    // 🔑 TU API KEY DE IMGBB
     private val imgbbApiKey = "c70d3ff45f1e6a410a7acc118d9f1146"
 
     private val client = HttpClient {
+        // Esto ayuda a evitar problemas de compresión en Android
         defaultRequest {
             header(HttpHeaders.AcceptEncoding, "identity")
         }
@@ -46,14 +49,16 @@ class DataRepository {
                 isLenient = true
             })
         }
+        // ❌ NO AÑADIMOS HttpTimeout PARA EVITAR CRASHES
     }
 
+    // --- 📸 SUBIDA DE IMÁGENES ---
     suspend fun uploadImage(imageBytes: ByteArray): String? {
         return try {
-            // ✅ CORRECCIÓN: Usamos la función nativa de Ktor que sirve para iOS y Android
+            // 1. Codificamos la imagen a Base64 (Nativo de Ktor)
             val base64Image = imageBytes.encodeBase64()
 
-            // 2. La enviamos a ImgBB
+            // 2. Enviamos a ImgBB
             val response = client.submitForm(
                 url = "https://api.imgbb.com/1/upload?key=$imgbbApiKey",
                 formParameters = parameters {
@@ -66,21 +71,29 @@ class DataRepository {
                 val json = Json.parseToJsonElement(responseText).jsonObject
                 val data = json["data"]?.jsonObject
                 val url = data?.get("url")?.jsonPrimitive?.content
-
-                println("✅ Imagen subida a ImgBB: $url")
+                println("✅ Imagen subida: $url")
                 url
             } else {
                 println("❌ Error ImgBB: ${response.status}")
                 null
             }
         } catch (e: Exception) {
-            println("❌ Error subiendo imagen: ${e.message}")
-            e.printStackTrace()
+            println("❌ Excepción subiendo imagen: ${e.message}")
             null
         }
     }
 
-    // --- EL RESTO DE FUNCIONES SIGUE IGUAL ---
+    // --- 📝 POSTS ---
+    suspend fun createPost(post: Post) {
+        try {
+            client.put("$dbUrl/posts/${post.id}.json") {
+                contentType(ContentType.Application.Json)
+                setBody(post)
+            }
+        } catch (e: Exception) {
+            println("Error createPost: ${e.message}")
+        }
+    }
 
     suspend fun getAllPosts(): List<Post> {
         return try {
@@ -89,26 +102,117 @@ class DataRepository {
                 val map = response.body<Map<String, Post>>()
                 map.values.sortedByDescending { it.timestamp }.toList()
             } else emptyList()
-        } catch (e: Exception) { emptyList() }
+        } catch (e: Exception) {
+            println("Error getAllPosts: ${e.message}")
+            emptyList()
+        }
     }
 
-    suspend fun createPost(post: Post) {
+    // --- 🌀 HISTORIAS (STORIES) ---
+    suspend fun createStory(story: Story) {
         try {
-            client.put("$dbUrl/posts/${post.id}.json") {
+            client.put("$dbUrl/stories/${story.id}.json") {
                 contentType(ContentType.Application.Json)
-                setBody(post)
+                setBody(story)
             }
-        } catch (e: Exception) { e.printStackTrace() }
+        } catch (e: Exception) {
+            println("Error createStory: ${e.message}")
+        }
     }
 
-    // ... (Mantén aquí tus funciones de Stories, Users y Chat igual que antes) ...
-    // Para no hacer el código gigante, asumo que las tienes del paso anterior.
-    // Si necesitas que te las pegue todas otra vez, dímelo.
+    suspend fun getAllStories(): List<Story> {
+        return try {
+            val response = client.get("$dbUrl/stories.json")
+            if (response.status == HttpStatusCode.OK && response.bodyAsText() != "null") {
+                val map = response.body<Map<String, Story>>()
+                map.values.sortedByDescending { it.timestamp }.toList()
+            } else emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 
-    suspend fun getAllStories(): List<Story> = emptyList() // ⚠️ Rellena con tu código anterior
-    suspend fun createStory(story: Story) {} // ⚠️ Rellena con tu código anterior
-    suspend fun getAllUsers(): List<User> = emptyList() // ⚠️ Rellena con tu código anterior
-    suspend fun getUser(userId: String): User? = null // ⚠️ Rellena con tu código anterior
-    suspend fun getMessages(chatId: String): List<Message> = emptyList() // ⚠️ Rellena
-    suspend fun sendMessage(chatId: String, message: Message) {} // ⚠️ Rellena
+    // --- 👤 USUARIOS ---
+    suspend fun getUser(userId: String): User? {
+        return try {
+            val response = client.get("$dbUrl/users/$userId.json")
+            if (response.status == HttpStatusCode.OK && response.bodyAsText() != "null") {
+                response.body<User>()
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    suspend fun getAllUsers(): List<User> {
+        return try {
+            val response = client.get("$dbUrl/users.json")
+            if (response.status == HttpStatusCode.OK && response.bodyAsText() != "null") {
+                val map = response.body<Map<String, User>>()
+                map.values.toList()
+            } else emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    // --- 💬 CHAT ---
+    suspend fun sendMessage(chatId: String, message: Message) {
+        try {
+            // Guardamos el mensaje usando su timestamp como ID para ordenarlo fácil
+            client.put("$dbUrl/chats/$chatId/${message.timestamp}.json") {
+                contentType(ContentType.Application.Json)
+                setBody(message)
+            }
+        } catch (e: Exception) {
+            println("Error sendMessage: ${e.message}")
+        }
+    }
+
+    suspend fun getMessages(chatId: String): List<Message> {
+        return try {
+            val response = client.get("$dbUrl/chats/$chatId.json")
+            if (response.status == HttpStatusCode.OK && response.bodyAsText() != "null") {
+                val map = response.body<Map<String, Message>>()
+                map.values.sortedBy { it.timestamp }.toList()
+            } else emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+    // ✅ NUEVO: Función para dar Like
+    suspend fun likePost(post: Post) {
+        try {
+            val newLikes = post.likes + 1
+            // Actualizamos solo el campo 'likes' en Firebase
+            client.patch("$dbUrl/posts/${post.id}.json") {
+                contentType(ContentType.Application.Json)
+                setBody(mapOf("likes" to newLikes))
+            }
+        } catch (e: Exception) {
+            println("Error dando like: ${e.message}")
+        }
+    }
+
+    // ✅ NUEVO: Función para Comentar
+    suspend fun commentPost(post: Post, commentText: String, username: String) {
+        try {
+            // 1. Obtenemos el tiempo actual (Forma correcta en KMP)
+            val timestamp = Clock.System.now().toEpochMilliseconds()
+
+            // ✅ ESTA ES LA LÍNEA QUE FALTABA:
+            // Usamos el timestamp como ID único para el comentario
+            val commentId = timestamp.toString()
+
+            val commentContent = "$username: $commentText"
+
+            // Guardamos el comentario dentro del post en Firebase
+            client.put("$dbUrl/posts/${post.id}/comments/$commentId.json") {
+                contentType(ContentType.Application.Json)
+                setBody(commentContent)
+            }
+        } catch (e: Exception) {
+            println("Error comentando: ${e.message}")
+        }
+    }
 }

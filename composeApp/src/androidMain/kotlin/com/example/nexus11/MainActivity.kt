@@ -7,11 +7,11 @@ import androidx.activity.enableEdgeToEdge
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-
+        enableEdgeToEdge()
         setContent {
-            App() // ✅ Esto llama a tu código compartido
+            // Esto llama a tu App() de commonMain
+            App()
         }
     }
 }

@@ -2,150 +2,148 @@ package com.example.nexus11.ui.screens.profile
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-// ✅ NUEVOS IMPORTS DE KAMEL (Adiós Coil)
+import cafe.adriel.voyager.core.screen.Screen
+import cafe.adriel.voyager.navigator.LocalNavigator
+import cafe.adriel.voyager.navigator.currentOrThrow
+import com.example.nexus11.data.DataRepository
+import com.example.nexus11.data.model.Post
+import com.example.nexus11.data.model.User
+import com.example.nexus11.ui.theme.*
 import io.kamel.image.KamelImage
 import io.kamel.image.asyncPainterResource
-import com.example.nexus11.data.AuthRepository
-import com.example.nexus11.data.DataRepository
-import com.example.nexus11.ui.theme.*
-import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ProfileScreen(
-    userIdToShow: String,
-    onBack: () -> Unit,
-    onLogout: () -> Unit,
-    onNavigateToChat: (String, String) -> Unit
-) {
-    val authRepo = remember { AuthRepository() }
-    val dataRepo = remember { DataRepository() }
-    val scope = rememberCoroutineScope()
+data class ProfileScreen(val userId: String) : Screen {
 
-    val myRealId = authRepo.getCurrentUserId() ?: ""
-    val isMyProfile = userIdToShow == "me" || userIdToShow == myRealId
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    override fun Content() {
+        val navigator = LocalNavigator.currentOrThrow
+        val repo = remember { DataRepository() }
 
-    var username by remember { mutableStateOf("Usuario Nexus") }
-    var email by remember { mutableStateOf("") }
-    var avatarUrl by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(true) }
+        var user by remember { mutableStateOf<User?>(null) }
+        var userPosts by remember { mutableStateOf<List<Post>>(emptyList()) }
+        var isLoading by remember { mutableStateOf(true) }
 
-    LaunchedEffect(userIdToShow) {
-        val idBusqueda = if (userIdToShow == "me") myRealId else userIdToShow
-        if (idBusqueda.isNotEmpty()) {
-            val user = dataRepo.getUser(idBusqueda)
-            if (user != null) {
-                username = user.username
-                email = user.email
-                avatarUrl = user.profileImageUrl
-            }
-        }
-        loading = false
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(NexusBlack),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = NexusBlue)
-            }
-            Text(if (isMyProfile) "Mi Perfil" else "Perfil", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-
-            if (isMyProfile) {
-                IconButton(onClick = { /* Ajustes */ }) {
-                    Icon(Icons.Default.Settings, null, tint = TextGray)
-                }
-            } else {
-                Spacer(modifier = Modifier.size(48.dp))
-            }
+        // Cargar datos del usuario y sus posts
+        LaunchedEffect(userId) {
+            user = repo.getUser(userId)
+            val allPosts = repo.getAllPosts()
+            // Filtramos solo los posts de este usuario
+            userPosts = allPosts.filter { it.userId == userId }
+            isLoading = false
         }
 
-        if (loading) {
-            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = NexusBlue)
-            }
-        } else {
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // FOTO DE PERFIL
-            Box(
-                modifier = Modifier.size(120.dp).clip(CircleShape).background(NexusDarkGray),
-                contentAlignment = Alignment.Center
-            ) {
-                if (!avatarUrl.isNullOrBlank()) {
-                    // ✅ CAMBIO CLAVE: Usamos KamelImage con asyncPainterResource
-                    KamelImage(
-                        resource = asyncPainterResource(avatarUrl!!),
-                        contentDescription = "Avatar de $username",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                        // Opcional: puedes poner un indicador de carga específico aquí
-                        onLoading = { progress -> CircularProgressIndicator(progress, color = NexusBlue) },
-                        onFailure = { error ->
-                            Text(username.take(1).uppercase(), fontSize = 40.sp, color = TextWhite)
-                        }
-                    )
-                } else {
-                    Text(username.take(1).uppercase(), fontSize = 40.sp, color = TextWhite, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Text(username, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = TextWhite)
-            if (isMyProfile) {
-                Text(email, fontSize = 14.sp, color = TextGray)
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            if (isMyProfile) {
-                Button(
-                    onClick = {
-                        scope.launch {
-                            authRepo.logout()
-                            onLogout()
+        Scaffold(
+            containerColor = NexusBlack,
+            topBar = {
+                TopAppBar(
+                    title = { Text(user?.username ?: "Perfil", color = TextWhite) },
+                    navigationIcon = {
+                        IconButton(onClick = { navigator.pop() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Atrás", tint = NexusBlue)
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = ErrorRed.copy(alpha = 0.2f)),
-                    modifier = Modifier.fillMaxWidth(0.8f).height(50.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Cerrar Sesión", color = ErrorRed, fontWeight = FontWeight.Bold)
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = NexusBlack)
+                )
+            }
+        ) { padding ->
+            if (isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = NexusBlue)
                 }
             } else {
-                Button(
-                    onClick = {
-                        val chatId = if (myRealId < userIdToShow) "${myRealId}_${userIdToShow}" else "${userIdToShow}_${myRealId}"
-                        onNavigateToChat(chatId, username)
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = NexusBlue),
-                    modifier = Modifier.fillMaxWidth(0.8f).height(50.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Enviar Mensaje", color = TextWhite, fontWeight = FontWeight.Bold)
+                Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+                    // --- CABECERA DEL PERFIL ---
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Avatar Grande
+                        Box(
+                            modifier = Modifier
+                                .size(100.dp)
+                                .clip(CircleShape)
+                                .background(NexusDarkGray),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (!user?.profileImageUrl.isNullOrBlank()) {
+                                KamelImage(
+                                    resource = asyncPainterResource(user!!.profileImageUrl!!),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Text(
+                                    text = user?.username?.take(1)?.uppercase() ?: "?",
+                                    fontSize = 40.sp,
+                                    color = TextWhite,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text(
+                            text = "@${user?.username}",
+                            color = TextWhite,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Text(
+                            text = "${userPosts.size} publicaciones",
+                            color = TextGray,
+                            fontSize = 14.sp
+                        )
+                    }
+
+                    Divider(color = NexusDarkGray)
+
+                    // --- GRID DE FOTOS ---
+                    if (userPosts.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("Aún no hay publicaciones", color = TextGray)
+                        }
+                    } else {
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(3),
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            items(userPosts) { post ->
+                                if (post.imageUrl.isNotEmpty()) {
+                                    KamelImage(
+                                        resource = asyncPainterResource(post.imageUrl),
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .aspectRatio(1f) // Cuadrado perfecto
+                                            .background(NexusDarkGray)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

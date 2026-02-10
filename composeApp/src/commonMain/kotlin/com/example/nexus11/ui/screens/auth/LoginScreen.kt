@@ -25,182 +25,191 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import cafe.adriel.voyager.core.screen.Screen
+import cafe.adriel.voyager.navigator.LocalNavigator
+import cafe.adriel.voyager.navigator.currentOrThrow
 import com.example.nexus11.data.AuthRepository
+import com.example.nexus11.ui.screens.MainScreen
 import com.example.nexus11.ui.theme.*
 import kotlinx.coroutines.launch
 
-@Composable
-fun LoginScreen(onLoginSuccess: () -> Unit) {
-    // --- ESTADOS ---
-    var isRegister by remember { mutableStateOf(false) } // Toggle Login/Registro
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var username by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
+// ✅ CAMBIO 1: Convertido a clase Screen de Voyager
+class LoginScreen : Screen {
 
-    var isLoading by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
+    @Composable
+    override fun Content() {
+        // ✅ CAMBIO 2: Obtenemos el navigator aquí
+        val navigator = LocalNavigator.currentOrThrow
+        val scope = rememberCoroutineScope()
+        val authRepository = remember { AuthRepository() }
 
-    val scope = rememberCoroutineScope()
-    val authRepository = remember { AuthRepository() }
+        // --- ESTADOS ---
+        var isRegister by remember { mutableStateOf(false) }
+        var email by remember { mutableStateOf("") }
+        var password by remember { mutableStateOf("") }
+        var username by remember { mutableStateOf("") }
+        var passwordVisible by remember { mutableStateOf(false) }
 
-    // FONDO NEGRO PURO (OLED)
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(NexusBlack),
-        contentAlignment = Alignment.Center
-    ) {
-        // TARJETA CENTRAL
-        Card(
+        var isLoading by remember { mutableStateOf(false) }
+        var errorMessage by remember { mutableStateOf<String?>(null) }
+
+        // FONDO NEGRO PURO (OLED)
+        Box(
             modifier = Modifier
-                .padding(24.dp)
-                .fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = NexusDarkGray),
-            shape = RoundedCornerShape(24.dp),
-            border = BorderStroke(1.dp, Color(0xFF333333)) // Borde sutil
+                .fillMaxSize()
+                .background(NexusBlack),
+            contentAlignment = Alignment.Center
         ) {
-            Column(
+            // TARJETA CENTRAL
+            Card(
                 modifier = Modifier
-                    .padding(32.dp)
+                    .padding(24.dp)
                     .fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
+                colors = CardDefaults.cardColors(containerColor = NexusDarkGray),
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, Color(0xFF333333))
             ) {
-                // TÍTULO
-                Text(
-                    text = if (isRegister) "Crear Cuenta" else "Bienvenido",
-                    color = TextWhite,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Column(
+                    modifier = Modifier
+                        .padding(32.dp)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // TÍTULO
+                    Text(
+                        text = if (isRegister) "Crear Cuenta" else "Bienvenido",
+                        color = TextWhite,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold
+                    )
 
-                Text(
-                    text = if (isRegister) "Únete a la comunidad Nexus" else "Te echábamos de menos",
-                    color = TextGray,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 32.dp)
-                )
+                    Text(
+                        text = if (isRegister) "Únete a la comunidad Nexus" else "Te echábamos de menos",
+                        color = TextGray,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 32.dp)
+                    )
 
-                // MENSAJE DE ERROR
-                errorMessage?.let { msg ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(ErrorRed.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                            .padding(12.dp)
-                    ) {
-                        Text(text = msg, color = ErrorRed, fontSize = 13.sp)
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-
-                // CAMPO USUARIO (Solo en Registro)
-                AnimatedVisibility(visible = isRegister) {
-                    Column {
-                        NexusTextField(
-                            value = username,
-                            onValueChange = { username = it },
-                            icon = Icons.Default.Person,
-                            placeholder = "Usuario"
-                        )
+                    // MENSAJE DE ERROR
+                    errorMessage?.let { msg ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(ErrorRed.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                                .padding(12.dp)
+                        ) {
+                            Text(text = msg, color = ErrorRed, fontSize = 13.sp)
+                        }
                         Spacer(modifier = Modifier.height(16.dp))
                     }
-                }
 
-                // EMAIL
-                NexusTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    icon = Icons.Default.Email,
-                    placeholder = "Email",
-                    keyboardType = KeyboardType.Email
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // PASSWORD
-                NexusTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    icon = Icons.Default.Lock,
-                    placeholder = "Contraseña",
-                    isPassword = true,
-                    isVisible = passwordVisible,
-                    onVisibilityChange = { passwordVisible = !passwordVisible },
-                    keyboardType = KeyboardType.Password
-                )
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // BOTÓN DE ACCIÓN
-                Button(
-                    onClick = {
-                        // Validación básica
-                        if (email.isBlank() || password.isBlank() || (isRegister && username.isBlank())) {
-                            errorMessage = "Por favor, rellena todos los campos."
-                            return@Button
+                    // CAMPO USUARIO (Solo en Registro)
+                    AnimatedVisibility(visible = isRegister) {
+                        Column {
+                            NexusTextField(
+                                value = username,
+                                onValueChange = { username = it },
+                                icon = Icons.Default.Person,
+                                placeholder = "Usuario"
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
                         }
+                    }
 
-                        scope.launch {
-                            try {
-                                errorMessage = null
-                                isLoading = true
+                    // EMAIL
+                    NexusTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        icon = Icons.Default.Email,
+                        placeholder = "Email",
+                        keyboardType = KeyboardType.Email
+                    )
 
-                                if (isRegister) {
-                                    // ✅ Llamamos a signUp
-                                    authRepository.signUp(email, password, username)
-                                } else {
-                                    // ✅ Llamamos a login (NO signIn)
-                                    authRepository.login(email, password)
-                                }
-                                isLoading = false
-                                onLoginSuccess() // Navegar al Home
-                            } catch (e: Exception) {
-                                isLoading = false
-                                // Limpiamos el mensaje de error de Firebase
-                                errorMessage = e.message?.replace("Exception: ", "") ?: "Error desconocido"
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // PASSWORD
+                    NexusTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        icon = Icons.Default.Lock,
+                        placeholder = "Contraseña",
+                        isPassword = true,
+                        isVisible = passwordVisible,
+                        onVisibilityChange = { passwordVisible = !passwordVisible },
+                        keyboardType = KeyboardType.Password
+                    )
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    // BOTÓN DE ACCIÓN
+                    Button(
+                        onClick = {
+                            if (email.isBlank() || password.isBlank() || (isRegister && username.isBlank())) {
+                                errorMessage = "Por favor, rellena todos los campos."
+                                return@Button
                             }
+
+                            scope.launch {
+                                try {
+                                    errorMessage = null
+                                    isLoading = true
+
+                                    if (isRegister) {
+                                        authRepository.signUp(email, password, username)
+                                    } else {
+                                        authRepository.login(email, password)
+                                    }
+                                    isLoading = false
+
+                                    // ✅ CAMBIO 3: Navegación correcta al MainScreen
+                                    navigator.replaceAll(MainScreen())
+
+                                } catch (e: Exception) {
+                                    isLoading = false
+                                    errorMessage = e.message?.replace("Exception: ", "") ?: "Error desconocido"
+                                }
+                            }
+                        },
+                        enabled = !isLoading,
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = NexusBlue,
+                            disabledContainerColor = NexusBlue.copy(alpha = 0.5f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(color = TextWhite, modifier = Modifier.size(24.dp))
+                        } else {
+                            Text(
+                                text = if (isRegister) "REGISTRARSE" else "ENTRAR",
+                                fontWeight = FontWeight.Bold,
+                                color = TextWhite
+                            )
                         }
-                    },
-                    enabled = !isLoading,
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = NexusBlue,
-                        disabledContainerColor = NexusBlue.copy(alpha = 0.5f)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(color = TextWhite, modifier = Modifier.size(24.dp))
-                    } else {
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // SWITCH LOGIN <-> REGISTRO
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = if (isRegister) "REGISTRARSE" else "ENTRAR",
+                            text = if (isRegister) "¿Ya tienes cuenta?" else "¿Nuevo en Nexus?",
+                            color = TextGray,
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isRegister) "Entra aquí" else "Crea una",
+                            color = NexusBlue,
                             fontWeight = FontWeight.Bold,
-                            color = TextWhite
+                            fontSize = 14.sp,
+                            modifier = Modifier.clickable {
+                                isRegister = !isRegister
+                                errorMessage = null
+                            }
                         )
                     }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // SWITCH LOGIN <-> REGISTRO
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = if (isRegister) "¿Ya tienes cuenta?" else "¿Nuevo en Nexus?",
-                        color = TextGray,
-                        fontSize = 14.sp
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (isRegister) "Entra aquí" else "Crea una",
-                        color = NexusBlue,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        modifier = Modifier.clickable {
-                            isRegister = !isRegister
-                            errorMessage = null // Limpiar errores al cambiar
-                        }
-                    )
                 }
             }
         }
@@ -237,7 +246,7 @@ fun NexusTextField(
         } else null,
         modifier = Modifier.fillMaxWidth(),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = NexusBlack, // Fondo negro dentro del input
+            focusedContainerColor = NexusBlack,
             unfocusedContainerColor = NexusBlack,
             focusedBorderColor = NexusBlue,
             unfocusedBorderColor = Color(0xFF333333),

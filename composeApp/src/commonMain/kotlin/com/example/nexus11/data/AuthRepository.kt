@@ -1,29 +1,26 @@
 package com.example.nexus11.data
 
-import com.example.nexus11.getCurrentTimeMillis
-import com.russhwolf.settings.Settings
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.plugins.defaultRequest // 👈 IMPORTANTE
-import io.ktor.client.request.*
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.*
+import io.ktor.client.request.post
+import io.ktor.client.request.put
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import kotlinx.datetime.Clock
+import com.russhwolf.settings.Settings // Asegúrate de tener este import si usas Settings
 
 class AuthRepository {
 
-    // ✅ CLIENTE UNIFICADO
-    private val client = HttpClient {
-
-        // 🛠️ SOLUCIÓN PARA IOS:
-        // Le decimos al servidor "Mándame los datos sin comprimir (identity)".
-        // Así los bytes coinciden exactos y Ktor no se queja en el iPhone.
-        defaultRequest {
-            header(HttpHeaders.AcceptEncoding, "identity")
-        }
-
+    private val httpClient = HttpClient {
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true
@@ -33,64 +30,97 @@ class AuthRepository {
         }
     }
 
+    // ⚠️ RECUERDA PONER TU API KEY REAL AQUÍ O NO FUNCIONARÁ EL LOGIN
+    private val apiKey = "TU_API_KEY_DE_FIREBASE"
+    private val firebaseAuthUrl = "https://identitytoolkit.googleapis.com/v1/accounts"
+    private val dbUrl = "https://TU_PROYECTO.firebaseio.com" // Tu URL de Realtime Database
+
+    // Para guardar la sesión (opcional, pero recomendado)
     private val settings = Settings()
-    private val apiKey = "AIzaSyATeUpvFKJH7Kzf3LsU7sQOQF7wxZGUA9U"
-    private val authUrl = "https://identitytoolkit.googleapis.com/v1/accounts"
-    private val dbUrl = "https://nexus11-f9c34-default-rtdb.europe-west1.firebasedatabase.app"
 
-    suspend fun login(email: String, password: String) {
-        val response = client.post {
-            url("$authUrl:signInWithPassword?key=$apiKey")
-            contentType(ContentType.Application.Json)
-            setBody(buildJsonObject {
+    suspend fun signUp(email: String, pass: String, username: String): String? {
+        return try {
+            val bodyData = buildJsonObject {
                 put("email", email)
-                put("password", password)
+                put("password", pass)
                 put("returnSecureToken", true)
-            })
-        }
+            }
 
-        if (response.status == HttpStatusCode.OK) {
-            val json = response.body<JsonObject>()
-            val uid = json["localId"]?.jsonPrimitive?.content ?: throw Exception("UID missing")
-            settings.putString("current_user_id", uid)
-        } else {
-            throw Exception("Error login: ${response.bodyAsText()}")
-        }
-    }
-
-    suspend fun signUp(email: String, password: String, username: String) {
-        val response = client.post {
-            url("$authUrl:signUp?key=$apiKey")
-            contentType(ContentType.Application.Json)
-            setBody(buildJsonObject {
-                put("email", email)
-                put("password", password)
-                put("returnSecureToken", true)
-            })
-        }
-
-        if (response.status == HttpStatusCode.OK) {
-            val json = response.body<JsonObject>()
-            val uid = json["localId"]?.jsonPrimitive?.content ?: throw Exception("Error UID")
-            val timestamp = getCurrentTimeMillis()
-
-            client.put {
-                url("$dbUrl/users/$uid.json")
+            val response = httpClient.post("$firebaseAuthUrl:signUp?key=$apiKey") {
                 contentType(ContentType.Application.Json)
-                setBody(buildJsonObject {
-                    put("id", uid)
+                setBody(bodyData)
+            }
+
+            if (response.status == HttpStatusCode.OK) {
+                val jsonResponse = response.body<JsonObject>()
+                val localId = jsonResponse["localId"]?.jsonPrimitive?.content
+                    ?: throw Exception("No localId found")
+
+                val timestamp = Clock.System.now().toEpochMilliseconds()
+
+                val userProfile = buildJsonObject {
+                    put("id", localId)
                     put("username", username)
                     put("email", email)
+                    put("joinedAt", timestamp)
                     put("profileImageUrl", "")
-                    put("createdAt", timestamp)
-                })
+                }
+
+                httpClient.put("$dbUrl/users/$localId.json") {
+                    contentType(ContentType.Application.Json)
+                    setBody(userProfile)
+                }
+
+                // Guardamos sesión
+                settings.putString("current_user_id", localId)
+                localId
+            } else {
+                null
             }
-            settings.putString("current_user_id", uid)
-        } else {
-            throw Exception("Error registro: ${response.bodyAsText()}")
+        } catch (e: Exception) {
+            println("Error signUp: ${e.message}")
+            null
         }
     }
 
-    fun logout() = settings.remove("current_user_id")
-    fun getCurrentUserId() = settings.getStringOrNull("current_user_id")
+    // ✅ RENOMBRADO: De 'signIn' a 'login' para que LoginScreen no falle
+    suspend fun login(email: String, pass: String): String? {
+        return try {
+            val bodyData = buildJsonObject {
+                put("email", email)
+                put("password", pass)
+                put("returnSecureToken", true)
+            }
+
+            val response = httpClient.post("$firebaseAuthUrl:signInWithPassword?key=$apiKey") {
+                contentType(ContentType.Application.Json)
+                setBody(bodyData)
+            }
+
+            if (response.status == HttpStatusCode.OK) {
+                val jsonResponse = response.body<JsonObject>()
+                val userId = jsonResponse["localId"]?.jsonPrimitive?.content
+
+                // Guardamos sesión si el login es correcto
+                if (userId != null) {
+                    settings.putString("current_user_id", userId)
+                }
+                userId
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            println("Error login: ${e.message}")
+            null
+        }
+    }
+
+    // ✅ AÑADIDO: Función logout que faltaba
+    fun logout() {
+        settings.remove("current_user_id")
+    }
+
+    fun getCurrentUserId(): String? {
+        return settings.getStringOrNull("current_user_id")
+    }
 }
