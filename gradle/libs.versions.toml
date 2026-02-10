@@ -1,0 +1,51 @@
+[versions]
+agp = "8.2.2"
+android-compileSdk = "35"
+android-minSdk = "24"
+android-targetSdk = "35"
+androidx-activityCompose = "1.9.0"
+androidx-lifecycle = "2.8.0"
+androidx-navigation = "2.7.0-alpha07"
+compose-plugin = "1.6.11"
+kotlin = "2.0.21"
+kamel = "1.0.3"
+peekaboo = "0.5.2"
+settings = "1.2.0"
+savedstate = "1.2.1"
+core-bundle = "1.0.0"
+
+[libraries]
+# --- ANDROID ---
+# Genera: libs.androidx.activity.compose
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version = "1.13.1" }
+
+# --- NAVEGACIÓN (Multiplatform) ---
+androidx-navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "androidx-navigation" }
+
+# --- CICLO DE VIDA (Multiplatform) ---
+androidx-lifecycle-viewmodelCompose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }
+androidx-lifecycle-runtimeCompose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
+
+# --- CORE Y SAVEDSTATE (Aquí estaba el fallo de iOS) ---
+# ✅ CORREGIDO: Usamos 'org.jetbrains' para que funcione en iPhone
+androidx-savedstate = { module = "org.jetbrains.androidx.savedstate:savedstate", version.ref = "savedstate" }
+androidx-core-bundle = { module = "org.jetbrains.androidx.core:core-bundle", version.ref = "core-bundle" }
+
+# --- COMPOSE TOOLS ---
+# Genera: libs.compose.uiTooling y libs.compose.uiToolingPreview
+compose-uiTooling = { module = "androidx.compose.ui:ui-tooling", version = "1.6.7" }
+compose-uiToolingPreview = { module = "androidx.compose.ui:ui-tooling-preview", version = "1.6.7" }
+
+# --- LIBRERÍAS EXTERNAS ---
+kamel-image = { module = "media.kamel:kamel-image", version.ref = "kamel" }
+peekaboo-ui = { module = "io.github.onseok:peekaboo-ui", version.ref = "peekaboo" }
+peekaboo-image-picker = { module = "io.github.onseok:peekaboo-image-picker", version.ref = "peekaboo" }
+multiplatform-settings-no-arg = { module = "com.russhwolf:multiplatform-settings-no-arg", version.ref = "settings" }
+
+[plugins]
+androidApplication = { id = "com.android.application", version.ref = "agp" }
+androidLibrary = { id = "com.android.library", version.ref = "agp" }
+composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "compose-plugin" }
+composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
