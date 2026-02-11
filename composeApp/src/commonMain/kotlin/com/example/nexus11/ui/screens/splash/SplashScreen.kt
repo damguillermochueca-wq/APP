@@ -1,4 +1,4 @@
-package com.example.nexus11.ui.screens.splash
+package com.example.nexus11.ui.screens.auth
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -17,7 +17,6 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.example.nexus11.data.AuthRepository
 import com.example.nexus11.ui.screens.MainScreen
-import com.example.nexus11.ui.screens.auth.LoginScreen
 import com.example.nexus11.ui.theme.NexusBlack
 import com.example.nexus11.ui.theme.NexusBlue
 import kotlinx.coroutines.delay
@@ -29,34 +28,23 @@ class SplashScreen : Screen {
         val authRepository = remember { AuthRepository() }
 
         LaunchedEffect(Unit) {
-            // 1. Esperamos un poco para mostrar el logo (UX)
             delay(2000)
 
-            // 2. Comprobamos si hay sesión activa
+            // ✅ LEEMOS EL ID DEL ALMACENAMIENTO PERSISTENTE
             val userId = authRepository.getCurrentUserId()
 
-            if (userId != null && userId.isNotBlank()) {
-                // ✅ USUARIO LOGUEADO -> Vamos a la App Principal (Pestañas)
+            if (!userId.isNullOrBlank()) {
                 navigator.replaceAll(MainScreen())
             } else {
-                // ❌ NO LOGUEADO -> Vamos al Login
                 navigator.replaceAll(LoginScreen())
             }
         }
 
-        // DISEÑO DEL SPLASH (Logo centrado)
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(NexusBlack), // Fondo Negro Nexus
+            modifier = Modifier.fillMaxSize().background(NexusBlack),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "NEXUS 11",
-                color = NexusBlue,
-                fontSize = 40.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text(text = "NEXUS 11", color = NexusBlue, fontSize = 40.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

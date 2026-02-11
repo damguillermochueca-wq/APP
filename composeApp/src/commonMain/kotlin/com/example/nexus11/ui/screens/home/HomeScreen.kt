@@ -1,5 +1,6 @@
 package com.example.nexus11.ui.screens.home
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -8,10 +9,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,211 +26,122 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.example.nexus11.data.DataRepository
 import com.example.nexus11.data.model.Post
-import com.example.nexus11.ui.screens.post.CreatePostScreen
 import com.example.nexus11.ui.screens.profile.ProfileScreen
+import com.example.nexus11.ui.theme.NexusBlue
+import com.example.nexus11.ui.theme.TextGray
 import io.kamel.image.KamelImage
 import io.kamel.image.asyncPainterResource
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class HomeScreen : Screen {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
-        // Obtenemos el navegador padre para salir de las pestañas al navegar
         val navigator = LocalNavigator.currentOrThrow.parent ?: LocalNavigator.currentOrThrow
         val repository = remember { DataRepository() }
         val scope = rememberCoroutineScope()
 
         var posts by remember { mutableStateOf<List<Post>>(emptyList()) }
         var isLoading by remember { mutableStateOf(true) }
+        var isRefreshing by remember { mutableStateOf(false) }
 
-        // Cargar posts al iniciar
-        LaunchedEffect(Unit) {
-            posts = repository.getAllPosts()
-            isLoading = false
+        fun refreshPosts() {
+            scope.launch {
+                isRefreshing = true
+                delay(1000)
+                try {
+                    posts = repository.getAllPosts()
+                } catch (e: Exception) {
+                    println("Error: ${e.message}")
+                } finally {
+                    isRefreshing = false
+                }
+            }
         }
 
+        LaunchedEffect(Unit) { refreshPosts(); isLoading = false }
+
         Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
             topBar = {
                 TopAppBar(
-                    title = { Text("Nexus 11 Feed") }
-                    // ❌ Sin actions (el chat está abajo)
+                    title = { Text("Nexus 11 Feed", fontWeight = FontWeight.Bold) },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background, titleContentColor = MaterialTheme.colorScheme.onBackground)
                 )
-            },
-            floatingActionButton = {
-                FloatingActionButton(onClick = { navigator.push(CreatePostScreen()) }) {
-                    Icon(Icons.Default.Add, contentDescription = "Nuevo Post")
-                }
             }
         ) { padding ->
             Box(modifier = Modifier.padding(padding).fillMaxSize()) {
-                if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                if (isLoading && posts.isEmpty()) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = NexusBlue)
                 } else {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
                         items(posts) { post ->
-                            PostCard(
-                                post = post,
-                                onLikeClick = {
-                                    scope.launch {
-                                        repository.likePost(post)
-                                        // Refrescamos la lista para ver el like al instante
-                                        posts = repository.getAllPosts()
-                                    }
-                                },
-                                onCommentSend = { text ->
-                                    scope.launch {
-                                        repository.commentPost(post, text, "Yo")
-                                        posts = repository.getAllPosts()
-                                    }
-                                },
-                                onUserClick = { userId ->
-                                    // ✅ Navegamos al perfil del usuario
-                                    navigator.push(ProfileScreen(userId))
-                                }
-                            )
+                            PostItemCard(post, { scope.launch { repository.likePost(post); refreshPosts() } }, { text -> scope.launch { repository.commentPost(post, text, "Usuario"); refreshPosts() } }, { userId -> navigator.push(ProfileScreen(userId)) })
                         }
                     }
                 }
+                if (isRefreshing) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter), color = NexusBlue)
             }
         }
     }
 }
 
 @Composable
-fun PostCard(
-    post: Post,
-    onLikeClick: () -> Unit,
-    onCommentSend: (String) -> Unit,
-    onUserClick: (String) -> Unit
-) {
+fun PostItemCard(post: Post, onLikeClick: () -> Unit, onCommentSend: (String) -> Unit, onUserClick: (String) -> Unit) {
     var commentText by remember { mutableStateOf("") }
+    val contentColor = MaterialTheme.colorScheme.onSurface
 
-    Card(
+    OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(4.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.outlinedCardColors(containerColor = Color.Transparent, contentColor = contentColor),
+        border = BorderStroke(1.dp, NexusBlue.copy(alpha = 0.5f))
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-
-            // --- CABECERA: AVATAR Y NOMBRE (Clickable) ---
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onUserClick(post.userId) } // <--- Click aquí lleva al perfil
-                    .padding(bottom = 8.dp)
-            ) {
-                // Avatar
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color.LightGray),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (!post.userAvatarUrl.isNullOrBlank()) {
-                        KamelImage(
-                            resource = asyncPainterResource(post.userAvatarUrl),
-                            contentDescription = "Avatar",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        // Inicial si no hay foto
-                        Text(
-                            text = post.username.take(1).uppercase(),
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
+        Column(modifier = Modifier.padding(bottom = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onUserClick(post.userId) }.padding(12.dp)) {
+                Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                    if (!post.userAvatarUrl.isNullOrBlank()) KamelImage(asyncPainterResource(post.userAvatarUrl), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    else Text(post.username.take(1).uppercase(), fontWeight = FontWeight.Bold, color = contentColor)
                 }
-
                 Spacer(modifier = Modifier.width(12.dp))
-
-                // Nombre
-                Text(
-                    text = "@${post.username}",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
+                Text(post.username, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
 
-            // --- IMAGEN DEL POST ---
-            if (post.imageUrl.isNotEmpty()) {
-                KamelImage(
-                    resource = asyncPainterResource(post.imageUrl),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(300.dp) // Altura fija para que se vea bien
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.LightGray)
-                )
-            }
+            if (post.imageUrl.isNotEmpty()) KamelImage(asyncPainterResource(post.imageUrl), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).heightIn(max = 350.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant))
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // --- BOTONES DE ACCIÓN (LIKE) ---
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onLikeClick) {
-                    Icon(
-                        imageVector = if (post.likes > 0) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = "Like",
-                        tint = if (post.likes > 0) Color.Red else Color.Gray
-                    )
+            Column(modifier = Modifier.padding(horizontal = 12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)) {
+                    IconButton(onClick = onLikeClick, modifier = Modifier.size(28.dp)) { Icon(if (post.likes > 0) Icons.Default.Favorite else Icons.Default.FavoriteBorder, "Like", tint = if (post.likes > 0) MaterialTheme.colorScheme.error else contentColor, modifier = Modifier.size(24.dp)) }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("${post.likes} Me gusta", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
-                Text("${post.likes} likes", fontWeight = FontWeight.Bold)
-            }
+                if (post.description.isNotEmpty()) Text(post.description, fontSize = 14.sp, modifier = Modifier.padding(vertical = 4.dp))
 
-            // --- DESCRIPCIÓN ---
-            if (post.description.isNotEmpty()) {
-                Text(
-                    text = post.description,
-                    fontSize = 15.sp,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-            }
+                // ✅ LÓGICA DE COMENTARIOS SEGURA
+                if (post.comments.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    if (post.comments.size > 1) Text("Ver los ${post.comments.size} comentarios", fontSize = 13.sp, color = TextGray, modifier = Modifier.padding(bottom = 4.dp))
 
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    val lastEntry = post.comments.entries.sortedBy { it.key }.last()
+                    val parts = lastEntry.value.split(": ", limit = 2)
+                    val user = if (parts.size > 1) parts[0] else "Anónimo"
+                    val msg = if (parts.size > 1) parts[1] else parts[0]
 
-            // --- LISTA DE COMENTARIOS (Preview) ---
-            if (post.comments.isNotEmpty()) {
-                Text("Comentarios:", fontSize = 12.sp, color = Color.Gray)
-                // Mostramos máximo 3 comentarios para no saturar
-                post.comments.values.take(3).forEach { com ->
-                    Text(com, fontSize = 13.sp, modifier = Modifier.padding(vertical = 1.dp))
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // --- CAJA PARA ESCRIBIR COMENTARIO ---
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = commentText,
-                    onValueChange = { commentText = it },
-                    placeholder = { Text("Escribe un comentario...") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent
-                    )
-                )
-                IconButton(
-                    onClick = {
-                        if (commentText.isNotBlank()) {
-                            onCommentSend(commentText)
-                            commentText = "" // Limpiar campo
-                        }
+                    Row(verticalAlignment = Alignment.Top) {
+                        Text("$user ", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = contentColor)
+                        Text(msg, fontSize = 13.sp, color = contentColor.copy(alpha = 0.9f))
                     }
-                ) {
-                    Icon(Icons.Default.Send, contentDescription = "Enviar", tint = Color.Blue)
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextField(value = commentText, onValueChange = { commentText = it }, placeholder = { Text("Añade un comentario...", fontSize = 14.sp, color = TextGray) }, modifier = Modifier.weight(1f), singleLine = true, colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, cursorColor = NexusBlue, focusedTextColor = contentColor, unfocusedTextColor = contentColor), textStyle = LocalTextStyle.current.copy(fontSize = 14.sp))
+                    if (commentText.isNotBlank()) TextButton(onClick = { onCommentSend(commentText); commentText = "" }) { Text("Publicar", color = NexusBlue, fontWeight = FontWeight.Bold) }
                 }
             }
         }
