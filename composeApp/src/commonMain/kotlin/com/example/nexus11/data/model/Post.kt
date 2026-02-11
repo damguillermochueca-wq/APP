@@ -9,7 +9,7 @@ data class Post(
     val username: String = "",
     // ✅ AÑADIDO: Ahora guardamos la foto del usuario en el post
     val userAvatarUrl: String? = null,
-    val imageUrl: String = "",
+    val imageUrl: String?= null,
     val description: String = "",
     val timestamp: Long = 0L,
     val likes: Int = 0,

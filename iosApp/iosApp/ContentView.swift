@@ -4,7 +4,8 @@ import ComposeApp
 
 struct ComposeView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIViewController {
-        MainViewControllerKt.MainViewController()
+        // ✅ AQUI ESTÁ EL CAMBIO: Añadir "as! UIViewController" al final
+        return MainViewControllerKt.MainViewController() as! UIViewController
     }
 
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
@@ -13,9 +14,8 @@ struct ComposeView: UIViewControllerRepresentable {
 struct ContentView: View {
     var body: some View {
         ComposeView()
-            .ignoresSafeArea()
+            .ignoresSafeArea(.all) // ✅ Esto arregla lo de que se vea "corta"
     }
 }
-
 
 

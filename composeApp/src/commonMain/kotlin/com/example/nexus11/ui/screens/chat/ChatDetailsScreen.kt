@@ -25,6 +25,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.example.nexus11.data.AuthRepository
 import com.example.nexus11.data.DataRepository
+
 import com.example.nexus11.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -43,32 +44,27 @@ data class ChatDetailScreen(
         val repo = remember { DataRepository() }
         val authRepo = remember { AuthRepository() }
         val scope = rememberCoroutineScope()
-
         val myId = authRepo.getCurrentUserId() ?: "anon"
 
         var textState by remember { mutableStateOf("") }
-        var listaMensajes by remember { mutableStateOf<List<Mensaje>>(emptyList()) } // ✅ Clase Mensaje
+        var listaMensajes by remember { mutableStateOf<List<Mensaje>>(emptyList()) }
         val scrollState = rememberLazyListState()
 
-        // Bucle para recibir mensajes nuevos
         LaunchedEffect(chatId) {
             while (true) {
                 try {
-                    val nuevos = repo.getMessages(chatId) // Asegúrate que en repo devuelva List<Mensaje>
+                    val nuevos = repo.getMessages(chatId)
                     if (nuevos.size != listaMensajes.size) {
                         listaMensajes = nuevos
-                        if (listaMensajes.isNotEmpty()) {
-                            scrollState.animateScrollToItem(listaMensajes.size - 1)
-                        }
+                        if (listaMensajes.isNotEmpty()) scrollState.animateScrollToItem(listaMensajes.size - 1)
                     }
-                } catch (e: Exception) {
-                    println("Error: ${e.message}")
-                }
+                } catch (e: Exception) { }
                 delay(2000)
             }
         }
 
         Scaffold(
+            modifier = Modifier.fillMaxSize(), // ✅ Ocupa todo el alto
             containerColor = NexusBlack,
             topBar = {
                 TopAppBar(
@@ -82,11 +78,17 @@ data class ChatDetailScreen(
                 )
             }
         ) { padding ->
-            Column(modifier = Modifier.padding(padding).fillMaxSize().background(NexusBlack)) {
-
-                // Área de mensajes
+            Column(
+                modifier = Modifier
+                    .fillMaxSize() // ✅ Fuerza al fondo a llegar hasta abajo
+                    .padding(padding)
+                    .background(NexusBlack)
+            ) {
                 LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f) // ✅ Esto empuja el input al fondo de la pantalla
+                        .padding(horizontal = 16.dp),
                     state = scrollState,
                     contentPadding = PaddingValues(vertical = 16.dp)
                 ) {
@@ -96,48 +98,53 @@ data class ChatDetailScreen(
                     }
                 }
 
-                // Input de texto
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(12.dp).navigationBarsPadding().imePadding(),
-                    verticalAlignment = Alignment.CenterVertically
+                // Input Box
+                Surface(
+                    color = NexusBlack,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .imePadding() // ✅ Sube el input cuando aparece el teclado
+                        .navigationBarsPadding() // ✅ Evita que se tape con la barra de gestos de Android
                 ) {
-                    OutlinedTextField(
-                        value = textState,
-                        onValueChange = { textState = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("Mensaje...", color = TextGray) },
-                        shape = RoundedCornerShape(25.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = NexusDarkGray,
-                            unfocusedContainerColor = NexusDarkGray,
-                            focusedTextColor = TextWhite,
-                            unfocusedTextColor = TextWhite,
-                            cursorColor = NexusBlue,
-                            focusedBorderColor = Color.Transparent,
-                            unfocusedBorderColor = Color.Transparent
-                        )
-                    )
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    IconButton(
-                        onClick = {
-                            if (textState.isNotBlank()) {
-                                scope.launch {
-                                    val nuevoMensaje = Mensaje( // ✅ Clase Mensaje
-                                        senderId = myId,
-                                        text = textState,
-                                        timestamp = Clock.System.now().toEpochMilliseconds(),
-                                        status = "sent"
-                                    )
-                                    repo.sendMessage(chatId, nuevoMensaje)
-                                    textState = ""
-                                }
-                            }
-                        },
-                        modifier = Modifier.size(48.dp).background(NexusBlue, CircleShape)
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.Send, null, tint = Color.White)
+                        OutlinedTextField(
+                            value = textState,
+                            onValueChange = { textState = it },
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text("Mensaje...", color = TextGray) },
+                            shape = RoundedCornerShape(25.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = NexusDarkGray,
+                                unfocusedContainerColor = NexusDarkGray,
+                                focusedTextColor = TextWhite,
+                                unfocusedTextColor = TextWhite,
+                                focusedBorderColor = Color.Transparent,
+                                unfocusedBorderColor = Color.Transparent
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(
+                            onClick = {
+                                if (textState.isNotBlank()) {
+                                    scope.launch {
+                                        val nuevoMensaje = Mensaje(
+                                            senderId = myId,
+                                            text = textState,
+                                            timestamp = Clock.System.now().toEpochMilliseconds(),
+                                            status = "sent"
+                                        )
+                                        repo.sendMessage(chatId, nuevoMensaje)
+                                        textState = ""
+                                    }
+                                }
+                            },
+                            modifier = Modifier.size(48.dp).background(NexusBlue, CircleShape)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Send, null, tint = Color.White)
+                        }
                     }
                 }
             }
@@ -146,26 +153,13 @@ data class ChatDetailScreen(
 }
 
 @Composable
-fun BurbujaMensaje(mensaje: Mensaje, esMio: Boolean) { // ✅ Clase Mensaje
-    Box(
-        modifier = Modifier.fillMaxWidth(),
-        contentAlignment = if (esMio) Alignment.CenterEnd else Alignment.CenterStart
-    ) {
+fun BurbujaMensaje(mensaje: Mensaje, esMio: Boolean) {
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = if (esMio) Alignment.CenterEnd else Alignment.CenterStart) {
         Surface(
             color = if (esMio) NexusBlue else NexusDarkGray,
-            shape = RoundedCornerShape(
-                topStart = 16.dp,
-                topEnd = 16.dp,
-                bottomStart = if (esMio) 16.dp else 2.dp,
-                bottomEnd = if (esMio) 2.dp else 16.dp
-            )
+            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = if (esMio) 16.dp else 2.dp, bottomEnd = if (esMio) 2.dp else 16.dp)
         ) {
-            Text(
-                text = mensaje.text,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                color = TextWhite,
-                fontSize = 15.sp
-            )
+            Text(text = mensaje.text, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp), color = TextWhite, fontSize = 15.sp)
         }
     }
 }
