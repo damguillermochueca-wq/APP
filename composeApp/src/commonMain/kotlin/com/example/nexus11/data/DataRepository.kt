@@ -34,7 +34,6 @@ class DataRepository {
     // 👤 USUARIOS (Profile & Search)
     // ----------------------------------------------------------------
 
-    // Obtener un usuario por ID
     suspend fun getUser(userId: String): User? {
         return try {
             client.get("$dbUrl/users/$userId.json").body()
@@ -44,7 +43,6 @@ class DataRepository {
         }
     }
 
-    // Obtener TODOS los usuarios (Para búsqueda o listas)
     suspend fun getAllUsers(): List<User> {
         return try {
             val response: Map<String, User>? = client.get("$dbUrl/users.json").body()
@@ -55,7 +53,6 @@ class DataRepository {
         }
     }
 
-    // Crear o actualizar usuario (al registrarse)
     suspend fun saveUser(user: User) {
         try {
             client.put("$dbUrl/users/${user.id}.json") {
@@ -67,15 +64,28 @@ class DataRepository {
         }
     }
 
+    // ✅ Actualizar solo la foto de perfil del usuario
+    suspend fun updateUserAvatar(userId: String, imageBytes: ByteArray) {
+        val imageUrl = uploadImage(imageBytes) // Reutilizamos tu subida blindada
+        if (imageUrl != null) {
+            try {
+                client.patch("$dbUrl/users/$userId.json") {
+                    contentType(ContentType.Application.Json)
+                    setBody(mapOf("profileImageUrl" to imageUrl))
+                }
+            } catch (e: Exception) {
+                println("Error actualizando avatar: ${e.message}")
+            }
+        }
+    }
+
     // ----------------------------------------------------------------
     // 📝 PUBLICACIONES (Feed & Create Post)
     // ----------------------------------------------------------------
 
-    // Obtener todos los posts (Ordenados por fecha descendente)
     suspend fun getAllPosts(): List<Post> {
         return try {
             val response: Map<String, Post>? = client.get("$dbUrl/posts.json").body()
-            // Mapeamos la key de Firebase al ID del objeto y ordenamos
             response?.map { entry ->
                 entry.value.copy(id = entry.key)
             }?.sortedByDescending { it.timestamp } ?: emptyList()
@@ -85,7 +95,6 @@ class DataRepository {
         }
     }
 
-    // Crear un nuevo post
     suspend fun createPost(post: Post) {
         try {
             client.put("$dbUrl/posts/${post.id}.json") {
@@ -97,7 +106,6 @@ class DataRepository {
         }
     }
 
-    // Dar Like a un post
     suspend fun likePost(post: Post) {
         try {
             client.patch("$dbUrl/posts/${post.id}.json") {
@@ -109,7 +117,6 @@ class DataRepository {
         }
     }
 
-    // Comentar un post
     suspend fun commentPost(post: Post, commentText: String, username: String) {
         try {
             val timestamp = Clock.System.now().toEpochMilliseconds()
@@ -129,14 +136,17 @@ class DataRepository {
     // 💬 CHATS (Mensajería)
     // ----------------------------------------------------------------
 
-    // 1. Obtener lista de chats (último mensaje de cada uno)
+    // ✅ NUEVO: Generar ID único para chats privados (A_B o B_A)
+    fun getChatId(user1: String, user2: String): String {
+        return if (user1 < user2) "${user1}_$user2" else "${user2}_$user1"
+    }
+
     suspend fun getAllChats(): List<Pair<String, Mensaje>> {
         return try {
             val response: Map<String, Map<String, Map<String, Mensaje>>>? =
                 client.get("$dbUrl/chats.json").body()
 
             response?.map { (chatId, chatData) ->
-                // Buscamos el último mensaje dentro de 'messages'
                 val lastMsg = chatData["messages"]?.values
                     ?.sortedBy { it.timestamp }
                     ?.lastOrNull()
@@ -150,7 +160,6 @@ class DataRepository {
         }
     }
 
-    // 2. Obtener mensajes de un chat específico
     suspend fun getMessages(chatId: String): List<Mensaje> {
         return try {
             val response: Map<String, Mensaje>? =
@@ -162,9 +171,9 @@ class DataRepository {
         }
     }
 
-    // 3. Enviar mensaje
     suspend fun sendMessage(chatId: String, mensaje: Mensaje) {
         try {
+            // Usamos POST para que Firebase genere una key única cronológica
             client.post("$dbUrl/chats/$chatId/messages.json") {
                 contentType(ContentType.Application.Json)
                 setBody(mensaje)
@@ -180,35 +189,12 @@ class DataRepository {
 
     suspend fun uploadImage(imageBytes: ByteArray): String? = withContext(Dispatchers.Default) {
         try {
-            // 1. Convertir bytes a Base64
             val base64 = imageBytes.encodeBase64()
-
-            // 2. LIMPIEZA CRÍTICA: Eliminar saltos de línea (\n, \r) que rompen la imagen en Firebase/Kamel
             val cleanBase64 = base64.replace("\n", "").replace("\r", "").trim()
-
-            // 3. Añadir prefijo obligatorio para que Kamel sepa que es una imagen
             "data:image/jpeg;base64,$cleanBase64"
         } catch (e: Exception) {
             println("Error subiendo imagen: ${e.message}")
             null
-        }
-    }
-    // ... (Mantén todo el código anterior IGUAL, imports y clases)
-
-    // ... (Mantén el bloque de uploadImage existente)
-
-    // ✅ NUEVA FUNCIÓN: Actualizar solo la foto de perfil del usuario
-    suspend fun updateUserAvatar(userId: String, imageBytes: ByteArray) {
-        val imageUrl = uploadImage(imageBytes) // Reutilizamos tu subida blindada
-        if (imageUrl != null) {
-            try {
-                client.patch("$dbUrl/users/$userId.json") {
-                    contentType(ContentType.Application.Json)
-                    setBody(mapOf("profileImageUrl" to imageUrl))
-                }
-            } catch (e: Exception) {
-                println("Error actualizando avatar: ${e.message}")
-            }
         }
     }
 }

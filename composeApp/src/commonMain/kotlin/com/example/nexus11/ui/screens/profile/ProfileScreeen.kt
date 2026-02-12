@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.material.icons.filled.Message
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +31,7 @@ import com.example.nexus11.data.AuthRepository
 import com.example.nexus11.data.DataRepository
 import com.example.nexus11.data.model.Post
 import com.example.nexus11.data.model.User
+import com.example.nexus11.ui.screens.chat.ChatDetailScreen
 import com.example.nexus11.ui.screens.home.PostCard
 import com.example.nexus11.ui.theme.NexusBlue
 import com.preat.peekaboo.image.picker.ResizeOptions
@@ -46,7 +48,9 @@ data class ProfileScreen(val userId: String) : Screen {
     @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
+        // ✅ CORRECCIÓN CRÍTICA: .parent para evitar crash al navegar al chat
+        val navigator = LocalNavigator.currentOrThrow.parent ?: LocalNavigator.currentOrThrow
+
         val repo = remember { DataRepository() }
         val authRepo = remember { AuthRepository() }
         val scope = rememberCoroutineScope()
@@ -58,13 +62,12 @@ data class ProfileScreen(val userId: String) : Screen {
         var selectedTabIndex by remember { mutableStateOf(0) }
         val tabs = listOf("Fotos", "Textos")
 
-        val myId = remember { authRepo.getCurrentUserId() }
+        val myId = remember { authRepo.getCurrentUserId() ?: "" }
         val isMe = myId == userId
 
         val bgColor = MaterialTheme.colorScheme.background
         val textColor = MaterialTheme.colorScheme.onBackground
 
-        // Selector para cambiar la foto de perfil (con compresión para que cargue)
         val avatarPicker = rememberImagePickerLauncher(
             selectionMode = SelectionMode.Single,
             scope = scope,
@@ -73,7 +76,7 @@ data class ProfileScreen(val userId: String) : Screen {
                 byteArrays.firstOrNull()?.let { bytes ->
                     scope.launch {
                         repo.updateUserAvatar(userId, bytes)
-                        user = repo.getUser(userId) // Refrescar info
+                        user = repo.getUser(userId)
                     }
                 }
             }
@@ -87,11 +90,8 @@ data class ProfileScreen(val userId: String) : Screen {
         }
 
         val postsToShow = remember(userPosts, selectedTabIndex) {
-            if (selectedTabIndex == 0) {
-                userPosts.filter { !it.imageUrl.isNullOrBlank() }
-            } else {
-                userPosts.filter { it.imageUrl.isNullOrBlank() }
-            }
+            if (selectedTabIndex == 0) userPosts.filter { !it.imageUrl.isNullOrBlank() }
+            else userPosts.filter { it.imageUrl.isNullOrBlank() }
         }
 
         Scaffold(
@@ -105,8 +105,6 @@ data class ProfileScreen(val userId: String) : Screen {
                     .padding(bottom = padding.calculateBottomPadding())
                     .background(bgColor)
             ) {
-                // --- CABECERA AJUSTADA ---
-                // Agregamos statusBarsPadding para que no se pegue al Notch en iOS/Android
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -115,10 +113,18 @@ data class ProfileScreen(val userId: String) : Screen {
                         .padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { navigator.pop() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = NexusBlue)
+                    if (navigator.canPop) {
+                        IconButton(onClick = { navigator.pop() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = NexusBlue)
+                        }
                     }
-                    Text("Perfil", color = textColor, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Text(
+                        text = if (isMe) "Mi Perfil" else "Perfil",
+                        color = textColor,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        modifier = Modifier.padding(start = if (navigator.canPop) 0.dp else 16.dp)
+                    )
                 }
 
                 if (isLoading) {
@@ -127,7 +133,6 @@ data class ProfileScreen(val userId: String) : Screen {
                     }
                 } else if (user != null) {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        // Info del Usuario
                         item {
                             Column(
                                 modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -158,10 +163,7 @@ data class ProfileScreen(val userId: String) : Screen {
                                         }
                                     }
                                     if (isMe) {
-                                        Box(
-                                            modifier = Modifier.size(30.dp).clip(CircleShape).background(NexusBlue).border(2.dp, bgColor, CircleShape),
-                                            contentAlignment = Alignment.Center
-                                        ) {
+                                        Box(Modifier.size(30.dp).clip(CircleShape).background(NexusBlue).border(2.dp, bgColor, CircleShape), contentAlignment = Alignment.Center) {
                                             Icon(Icons.Default.AddAPhoto, null, tint = Color.White, modifier = Modifier.size(14.dp))
                                         }
                                     }
@@ -169,16 +171,31 @@ data class ProfileScreen(val userId: String) : Screen {
                                 Spacer(Modifier.height(12.dp))
                                 Text(user!!.username, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = textColor)
                                 Text("${userPosts.size} Publicaciones", color = textColor.copy(0.6f), fontSize = 14.sp)
+
+                                // Botón Enviar Mensaje
+                                if (!isMe) {
+                                    Spacer(Modifier.height(16.dp))
+                                    Button(
+                                        onClick = {
+                                            val chatId = repo.getChatId(myId, userId)
+                                            navigator.push(ChatDetailScreen(chatId, userId, user!!.username))
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = NexusBlue),
+                                        shape = RoundedCornerShape(20.dp)
+                                    ) {
+                                        Icon(Icons.Default.Message, null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Enviar Mensaje")
+                                    }
+                                }
                             }
                         }
 
-                        // Pestañas (Sticky)
                         stickyHeader {
                             TabRow(
                                 selectedTabIndex = selectedTabIndex,
                                 containerColor = bgColor,
-                                contentColor = NexusBlue,
-                                divider = { HorizontalDivider(color = textColor.copy(0.1f)) }
+                                contentColor = NexusBlue
                             ) {
                                 tabs.forEachIndexed { index, title ->
                                     Tab(
@@ -190,15 +207,18 @@ data class ProfileScreen(val userId: String) : Screen {
                             }
                         }
 
-                        // Lista de Posts (reutiliza el PostCard que ya carga las fotos bien)
-                        items(postsToShow) { post ->
+                        items(
+                            items = postsToShow,
+                            key = { it.id },
+                            contentType = { "post" }
+                        ) { post ->
                             Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                                 PostCard(
                                     post = post,
                                     repo = repo,
                                     contentColor = textColor,
                                     cardBgColor = MaterialTheme.colorScheme.surfaceVariant,
-                                    onUserClick = { /* Ya estamos en su perfil */ }
+                                    onUserClick = {}
                                 )
                             }
                         }

@@ -43,7 +43,6 @@ import kotlinx.coroutines.launch
 class HomeScreen : Screen {
     @Composable
     override fun Content() {
-        // Obtenemos el navigator parent para que el perfil tape la barra inferior al navegar
         val navigator = LocalNavigator.currentOrThrow.parent ?: LocalNavigator.currentOrThrow
         val repo = remember { DataRepository() }
 
@@ -55,8 +54,7 @@ class HomeScreen : Screen {
         val bgColor = MaterialTheme.colorScheme.background
         val textColor = MaterialTheme.colorScheme.onBackground
 
-        // ✅ Lógica de Paginación (Precarga de 7 en 7)
-        val pageSize = 7
+        val pageSize = 10
         var currentPage by remember { mutableStateOf(1) }
 
         LaunchedEffect(Unit) {
@@ -65,21 +63,16 @@ class HomeScreen : Screen {
             isLoading = false
         }
 
-        // Detectar scroll para cargar más
-        val isAtBottom by remember {
+        val isNearBottom by remember {
             derivedStateOf {
                 val layoutInfo = listState.layoutInfo
-                val visibleItemsInfo = layoutInfo.visibleItemsInfo
-                if (layoutInfo.totalItemsCount == 0) false
-                else {
-                    val lastVisibleItem = visibleItemsInfo.last()
-                    lastVisibleItem.index + 1 == layoutInfo.totalItemsCount
-                }
+                val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
+                lastVisibleItem != null && lastVisibleItem.index >= layoutInfo.totalItemsCount - 2
             }
         }
 
-        LaunchedEffect(isAtBottom) {
-            if (isAtBottom && displayedPosts.size < allPosts.size) {
+        LaunchedEffect(isNearBottom) {
+            if (isNearBottom && displayedPosts.size < allPosts.size) {
                 currentPage++
                 displayedPosts = allPosts.take(currentPage * pageSize)
             }
@@ -96,7 +89,6 @@ class HomeScreen : Screen {
                     .padding(bottom = padding.calculateBottomPadding())
                     .background(bgColor)
             ) {
-                // Cabecera compacta
                 Box(
                     modifier = Modifier.fillMaxWidth().height(44.dp),
                     contentAlignment = Alignment.CenterStart
@@ -118,19 +110,20 @@ class HomeScreen : Screen {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(top = 0.dp, start = 16.dp, end = 16.dp, bottom = 16.dp),
+                        contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        items(displayedPosts) { post ->
+                        items(
+                            items = displayedPosts,
+                            key = { it.id },
+                            contentType = { "post" }
+                        ) { post ->
                             PostCard(
                                 post = post,
                                 repo = repo,
                                 contentColor = textColor,
                                 cardBgColor = MaterialTheme.colorScheme.surfaceVariant,
-                                onUserClick = { userId ->
-                                    // Navegamos al perfil
-                                    navigator.push(ProfileScreen(userId))
-                                }
+                                onUserClick = { userId -> navigator.push(ProfileScreen(userId)) }
                             )
                         }
                     }
@@ -153,9 +146,8 @@ fun PostCard(
     var commentText by remember { mutableStateOf("") }
     var commentsList by remember { mutableStateOf(post.comments.entries.sortedBy { it.key }.map { it.value }) }
 
-    // ✅ Lógica para que la foto de perfil se actualice siempre
+    // ✅ CORRECCIÓN CRÍTICA: Eliminado el 'if null'. Ahora siempre busca la foto más reciente.
     var currentAvatarUrl by remember { mutableStateOf(post.userAvatarUrl) }
-
     LaunchedEffect(post.userId) {
         val user = repo.getUser(post.userId)
         if (user?.profileImageUrl != null) {
@@ -163,14 +155,12 @@ fun PostCard(
         }
     }
 
-    // Lógica híbrida de imágenes del post (tu fix que ya funciona)
     val postBitmap = remember(post.imageUrl) {
-        try {
-            if (post.imageUrl?.startsWith("data:image") == true) {
-                val base64String = post.imageUrl.substringAfter(",")
-                base64String.decodeBase64Bytes().toImageBitmap()
-            } else null
-        } catch (e: Exception) { null }
+        if (post.imageUrl?.startsWith("data:image") == true) {
+            try {
+                post.imageUrl.substringAfter(",").decodeBase64Bytes().toImageBitmap()
+            } catch (e: Exception) { null }
+        } else null
     }
 
     Card(
@@ -186,7 +176,6 @@ fun PostCard(
                 Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(NexusBlue), contentAlignment = Alignment.Center) {
                     if (!currentAvatarUrl.isNullOrBlank()) {
                         val avatarUrl = if (currentAvatarUrl!!.startsWith("data:image")) currentAvatarUrl!! else "data:image/jpeg;base64,${currentAvatarUrl}"
-
                         if (avatarUrl.contains("base64,")) {
                             val bitmap = remember(avatarUrl) {
                                 try { avatarUrl.substringAfter(",").decodeBase64Bytes().toImageBitmap() } catch(e:Exception){null}

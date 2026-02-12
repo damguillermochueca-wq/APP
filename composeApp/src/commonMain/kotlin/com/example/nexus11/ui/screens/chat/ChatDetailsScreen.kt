@@ -1,6 +1,5 @@
 package com.example.nexus11.ui.screens.chat
 
-import Mensaje
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,7 +14,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -25,8 +23,8 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.example.nexus11.data.AuthRepository
 import com.example.nexus11.data.DataRepository
-
-import com.example.nexus11.ui.theme.*
+import Mensaje
+import com.example.nexus11.ui.theme.NexusBlue
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
@@ -37,7 +35,6 @@ data class ChatDetailScreen(
     val userName: String
 ) : Screen {
 
-    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
@@ -50,6 +47,12 @@ data class ChatDetailScreen(
         var listaMensajes by remember { mutableStateOf<List<Mensaje>>(emptyList()) }
         val scrollState = rememberLazyListState()
 
+        // Colores dinámicos
+        val bgColor = MaterialTheme.colorScheme.background
+        val textColor = MaterialTheme.colorScheme.onBackground
+        val surfaceColor = MaterialTheme.colorScheme.surfaceVariant
+
+        // Polling simple para actualizar mensajes cada 2s
         LaunchedEffect(chatId) {
             while (true) {
                 try {
@@ -64,87 +67,94 @@ data class ChatDetailScreen(
         }
 
         Scaffold(
-            modifier = Modifier.fillMaxSize(), // ✅ Ocupa todo el alto
-            containerColor = NexusBlack,
+            modifier = Modifier.fillMaxSize(),
+            containerColor = bgColor,
+            contentWindowInsets = WindowInsets(0.dp),
             topBar = {
-                TopAppBar(
-                    title = { Text(userName, color = TextWhite, fontWeight = FontWeight.Bold) },
-                    navigationIcon = {
+                // Cabecera manual para control total
+                Column(modifier = Modifier.background(bgColor)) {
+                    Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         IconButton(onClick = { navigator.pop() }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Atrás", tint = NexusBlue)
                         }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = NexusBlack)
-                )
+                        Text(userName, color = textColor, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    }
+                    HorizontalDivider(color = textColor.copy(0.1f))
+                }
             }
         ) { padding ->
             Column(
                 modifier = Modifier
-                    .fillMaxSize() // ✅ Fuerza al fondo a llegar hasta abajo
-                    .padding(padding)
-                    .background(NexusBlack)
+                    .fillMaxSize()
+                    .padding(padding) // Respeta el topBar
+                    .background(bgColor)
+                    .imePadding() // Sube con teclado
             ) {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f) // ✅ Esto empuja el input al fondo de la pantalla
+                        .weight(1f)
                         .padding(horizontal = 16.dp),
                     state = scrollState,
                     contentPadding = PaddingValues(vertical = 16.dp)
                 ) {
                     items(listaMensajes) { m ->
-                        BurbujaMensaje(m, esMio = m.senderId == myId)
+                        BurbujaMensaje(m, esMio = m.senderId == myId, textColor, surfaceColor)
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
 
                 // Input Box
-                Surface(
-                    color = NexusBlack,
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .imePadding() // ✅ Sube el input cuando aparece el teclado
-                        .navigationBarsPadding() // ✅ Evita que se tape con la barra de gestos de Android
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = textState,
-                            onValueChange = { textState = it },
-                            modifier = Modifier.weight(1f),
-                            placeholder = { Text("Mensaje...", color = TextGray) },
-                            shape = RoundedCornerShape(25.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = NexusDarkGray,
-                                unfocusedContainerColor = NexusDarkGray,
-                                focusedTextColor = TextWhite,
-                                unfocusedTextColor = TextWhite,
-                                focusedBorderColor = Color.Transparent,
-                                unfocusedBorderColor = Color.Transparent
-                            )
+                    OutlinedTextField(
+                        value = textState,
+                        onValueChange = { textState = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Mensaje...", color = textColor.copy(0.5f)) },
+                        shape = RoundedCornerShape(25.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = surfaceColor.copy(0.3f),
+                            unfocusedContainerColor = surfaceColor.copy(0.3f),
+                            focusedTextColor = textColor,
+                            unfocusedTextColor = textColor,
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(
-                            onClick = {
-                                if (textState.isNotBlank()) {
-                                    scope.launch {
-                                        val nuevoMensaje = Mensaje(
-                                            senderId = myId,
-                                            text = textState,
-                                            timestamp = Clock.System.now().toEpochMilliseconds(),
-                                            status = "sent"
-                                        )
-                                        repo.sendMessage(chatId, nuevoMensaje)
-                                        textState = ""
-                                    }
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = {
+                            if (textState.isNotBlank()) {
+                                scope.launch {
+                                    val nuevoMensaje = Mensaje(
+                                        id = "",
+                                        senderId = myId,
+                                        text = textState,
+                                        timestamp = Clock.System.now().toEpochMilliseconds()
+                                    )
+                                    repo.sendMessage(chatId, nuevoMensaje)
+                                    textState = ""
+                                    // Actualizamos localmente al instante para sensación de rapidez
+                                    listaMensajes = listaMensajes + nuevoMensaje
+                                    scrollState.animateScrollToItem(listaMensajes.size - 1)
                                 }
-                            },
-                            modifier = Modifier.size(48.dp).background(NexusBlue, CircleShape)
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.Send, null, tint = Color.White)
-                        }
+                            }
+                        },
+                        modifier = Modifier.size(48.dp).background(NexusBlue, CircleShape)
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.Send, null, tint = Color.White)
                     }
                 }
             }
@@ -153,13 +163,18 @@ data class ChatDetailScreen(
 }
 
 @Composable
-fun BurbujaMensaje(mensaje: Mensaje, esMio: Boolean) {
+fun BurbujaMensaje(mensaje: Mensaje, esMio: Boolean, textColor: Color, surfaceColor: Color) {
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = if (esMio) Alignment.CenterEnd else Alignment.CenterStart) {
         Surface(
-            color = if (esMio) NexusBlue else NexusDarkGray,
-            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = if (esMio) 16.dp else 2.dp, bottomEnd = if (esMio) 2.dp else 16.dp)
+            color = if (esMio) NexusBlue else surfaceColor,
+            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = if (esMio) 16.dp else 4.dp, bottomEnd = if (esMio) 4.dp else 16.dp)
         ) {
-            Text(text = mensaje.text, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp), color = TextWhite, fontSize = 15.sp)
+            Text(
+                text = mensaje.text,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                color = if (esMio) Color.White else textColor,
+                fontSize = 15.sp
+            )
         }
     }
 }
