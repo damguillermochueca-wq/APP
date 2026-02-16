@@ -1,8 +1,8 @@
 package com.example.nexus11.ui.screens.post
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,12 +10,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -27,10 +28,10 @@ import androidx.compose.ui.unit.sp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import com.example.nexus11.data.AppCache
 import com.example.nexus11.data.AuthRepository
 import com.example.nexus11.data.DataRepository
 import com.example.nexus11.data.model.Post
-import com.example.nexus11.ui.theme.NexusBlue
 import com.preat.peekaboo.image.picker.ResizeOptions
 import com.preat.peekaboo.image.picker.SelectionMode
 import com.preat.peekaboo.image.picker.rememberImagePickerLauncher
@@ -50,26 +51,17 @@ class CreatePostScreen : Screen {
 
         var text by remember { mutableStateOf("") }
         var isLoading by remember { mutableStateOf(false) }
-
         var selectedImageBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
         var selectedImageBytes by remember { mutableStateOf<ByteArray?>(null) }
 
+        val themeColor = AppCache.themeColor
         val bgColor = MaterialTheme.colorScheme.background
         val textColor = MaterialTheme.colorScheme.onBackground
-
-        fun clearAndPop() {
-            text = ""
-            selectedImageBytes = null
-            selectedImageBitmap = null
-            focusManager.clearFocus()
-            navigator.pop()
-        }
 
         val singleImagePicker = rememberImagePickerLauncher(
             selectionMode = SelectionMode.Single,
             scope = scope,
-            // ⚠️ ESTO ES LA CLAVE: Reduce la foto aquí para que tu DataRepository pueda subirla sin cambios
-            resizeOptions = ResizeOptions(width = 1000, height = 1000, compressionQuality = 0.6),
+            resizeOptions = ResizeOptions(width = 1200, height = 1200, compressionQuality = 0.7),
             onResult = { byteArrays ->
                 byteArrays.firstOrNull()?.let {
                     selectedImageBytes = it
@@ -81,19 +73,16 @@ class CreatePostScreen : Screen {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = bgColor,
-            contentWindowInsets = WindowInsets(0.dp)
-        ) { padding ->
+            topBar = {
+                // 🛡️ CABECERA AJUSTADA AL NIVEL DEL PERFIL
+                Column(
+                    modifier = Modifier
+                        .background(bgColor)
+                        .statusBarsPadding() // Espacio para el reloj
+                ) {
+                    // 🟢 El "aire" extra de 12dp para bajar los botones
+                    Spacer(Modifier.height(12.dp))
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(bgColor)
-                    .imePadding() // Sube la pantalla con el teclado
-            ) {
-
-                // --- 1. BARRA SUPERIOR ---
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -104,26 +93,23 @@ class CreatePostScreen : Screen {
                     ) {
                         Text(
                             text = "Cancelar",
-                            color = textColor.copy(alpha = 0.7f),
+                            color = textColor.copy(alpha = 0.6f),
                             fontSize = 16.sp,
-                            modifier = Modifier.clickable { clearAndPop() }
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.clickable { navigator.pop() }
                         )
 
                         Button(
                             onClick = {
                                 if (text.isNotBlank() || selectedImageBytes != null) {
                                     isLoading = true
-                                    focusManager.clearFocus()
                                     scope.launch {
                                         try {
-                                            val userId = authRepo.getCurrentUserId() ?: "anon"
+                                            val userId = authRepo.getCurrentUserId() ?: ""
                                             val currentUser = dataRepo.getUser(userId)
                                             val now = Clock.System.now().toEpochMilliseconds()
 
-                                            var finalImageUrl = ""
-                                            if (selectedImageBytes != null) {
-                                                finalImageUrl = dataRepo.uploadImage(selectedImageBytes!!) ?: ""
-                                            }
+                                            val imageUrl = selectedImageBytes?.let { dataRepo.uploadImage(it) } ?: ""
 
                                             val newPost = Post(
                                                 id = "post_$now",
@@ -131,143 +117,174 @@ class CreatePostScreen : Screen {
                                                 username = currentUser?.username ?: "Usuario",
                                                 userAvatarUrl = currentUser?.profileImageUrl,
                                                 description = text,
-                                                imageUrl = finalImageUrl,
+                                                imageUrl = imageUrl,
                                                 timestamp = now
                                             )
 
                                             dataRepo.createPost(newPost)
-
-                                            isLoading = false
-                                            clearAndPop()
-
+                                            navigator.pop()
                                         } catch (e: Exception) {
                                             isLoading = false
-                                            println("Error: ${e.message}")
                                         }
                                     }
                                 }
                             },
                             enabled = !isLoading && (text.isNotBlank() || selectedImageBytes != null),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = NexusBlue,
-                                disabledContainerColor = NexusBlue.copy(alpha = 0.3f)
+                                containerColor = themeColor,
+                                contentColor = Color.White
                             ),
-                            shape = RoundedCornerShape(20.dp),
-                            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 0.dp),
-                            modifier = Modifier.height(36.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp),
+                            modifier = Modifier.height(38.dp)
                         ) {
                             if (isLoading) {
-                                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
                             } else {
-                                Text("Publicar", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("Publicar", fontWeight = FontWeight.ExtraBold)
                             }
                         }
                     }
                     HorizontalDivider(color = textColor.copy(0.1f))
                 }
-
-                // --- 2. CONTENIDO ---
+            }
+        ) { padding ->
+            Box(modifier = Modifier.fillMaxSize().padding(padding).imePadding()) {
                 LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentPadding = PaddingValues(16.dp)
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(20.dp)
                 ) {
                     item {
-                        // ✅ CORREGIDO: Usamos verticalAlignment en lugar de crossAxisAlignment
-                        Row(verticalAlignment = Alignment.Top) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.Gray.copy(0.2f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("Yo", color = textColor, fontSize = 12.sp)
-                            }
+                        // 🟢 Un pequeño respiro antes del texto
+                        Spacer(Modifier.height(8.dp))
 
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            TextField(
-                                value = text,
-                                onValueChange = { text = it },
-                                placeholder = {
-                                    Text("¿Qué está pasando?", color = textColor.copy(alpha = 0.5f), fontSize = 18.sp)
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                    cursorColor = NexusBlue,
-                                    focusedTextColor = textColor,
-                                    unfocusedTextColor = textColor
-                                ),
-                                textStyle = TextStyle(fontSize = 18.sp, lineHeight = 24.sp)
-                            )
-                        }
+                        TextField(
+                            value = text,
+                            onValueChange = { if (it.length <= 280) text = it },
+                            placeholder = {
+                                Text(
+                                    "¿Qué hay de nuevo?",
+                                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Light, color = textColor.copy(0.4f))
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                cursorColor = themeColor,
+                                focusedTextColor = textColor
+                            ),
+                            textStyle = TextStyle(fontSize = 20.sp, lineHeight = 28.sp, fontWeight = FontWeight.Medium)
+                        )
                     }
 
-                    if (selectedImageBitmap != null) {
-                        item {
-                            Spacer(modifier = Modifier.height(16.dp))
+                    item {
+                        AnimatedVisibility(
+                            visible = selectedImageBitmap != null,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
                             Box(
                                 modifier = Modifier
+                                    .padding(top = 24.dp)
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .border(1.dp, Color.Gray.copy(0.2f), RoundedCornerShape(16.dp))
+                                    .aspectRatio(1.2f) // Un poco más apaisado queda mejor
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(textColor.copy(0.05f))
                             ) {
-                                Image(
-                                    bitmap = selectedImageBitmap!!,
-                                    contentDescription = null,
-                                    contentScale = ContentScale.FillWidth,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                IconButton(
-                                    onClick = {
-                                        selectedImageBitmap = null
-                                        selectedImageBytes = null
-                                    },
+                                selectedImageBitmap?.let {
+                                    Image(
+                                        bitmap = it,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+
+                                Surface(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
-                                        .padding(8.dp)
+                                        .padding(12.dp)
                                         .size(32.dp)
-                                        .background(Color.Black.copy(0.6f), CircleShape)
+                                        .clickable { selectedImageBitmap = null; selectedImageBytes = null },
+                                    color = Color.Black.copy(0.7f),
+                                    shape = CircleShape
                                 ) {
-                                    Icon(Icons.Default.Close, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.Close, null, tint = Color.White, modifier = Modifier.padding(6.dp))
                                 }
                             }
                         }
                     }
+
+                    // Espacio final para que el teclado no tape el contenido
+                    item { Spacer(Modifier.height(80.dp)) }
                 }
 
-                // --- 3. BARRA INFERIOR ---
-                Column(
+                // BARRA DE HERRAMIENTAS INFERIOR (FLOTANTE SOBRE TECLADO)
+                Surface(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .background(bgColor)
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth(),
+                    color = bgColor,
+                    tonalElevation = 4.dp
                 ) {
-                    HorizontalDivider(color = textColor.copy(0.1f))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = { singleImagePicker.launch() }) {
-                            Icon(Icons.Default.Image, contentDescription = "Foto", tint = NexusBlue)
-                        }
-                        Text(
-                            text = "Añadir imagen",
-                            color = NexusBlue,
-                            fontWeight = FontWeight.Medium,
+                    Column {
+                        HorizontalDivider(color = textColor.copy(0.05f))
+                        Row(
                             modifier = Modifier
-                                .padding(start = 8.dp)
-                                .clickable { singleImagePicker.launch() }
-                        )
+                                .padding(horizontal = 16.dp, vertical = 10.dp)
+                                .fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable { singleImagePicker.launch() }
+                            ) {
+                                Box(
+                                    Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(themeColor.copy(0.1f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Rounded.AddPhotoAlternate, "Imagen", tint = themeColor, modifier = Modifier.size(20.dp))
+                                }
+
+                                Spacer(Modifier.width(12.dp))
+
+                                Text(
+                                    if (selectedImageBitmap == null) "Añadir foto" else "Cambiar foto",
+                                    color = themeColor,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            // Contador de caracteres con diseño circular
+                            Box(contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(
+                                    progress = { text.length / 280f },
+                                    modifier = Modifier.size(28.dp),
+                                    color = if (text.length > 250) Color.Red else themeColor,
+                                    strokeWidth = 3.dp,
+                                    trackColor = textColor.copy(0.1f)
+                                )
+                                if (text.length > 200) {
+                                    Text(
+                                        (280 - text.length).toString(),
+                                        fontSize = 10.sp,
+                                        color = if (text.length > 250) Color.Red else textColor.copy(0.6f),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                        // Espacio para la barra de navegación del sistema
+                        Spacer(Modifier.navigationBarsPadding())
                     }
-                    Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
                 }
             }
         }

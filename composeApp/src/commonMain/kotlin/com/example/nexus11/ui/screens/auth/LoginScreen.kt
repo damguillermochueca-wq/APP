@@ -89,14 +89,35 @@ class LoginScreen : Screen {
 
                     AnimatedVisibility(visible = isRegister) {
                         Column {
-                            NexusTextField(value = username, onValueChange = { username = it }, icon = Icons.Default.Person, placeholder = "Usuario")
+                            NexusTextField(
+                                value = username,
+                                onValueChange = { username = it },
+                                icon = Icons.Default.Person,
+                                placeholder = "Usuario"
+                            )
                             Spacer(modifier = Modifier.height(16.dp))
                         }
                     }
 
-                    NexusTextField(value = email, onValueChange = { email = it }, icon = Icons.Default.Email, placeholder = "Email", keyboardType = KeyboardType.Email)
+                    NexusTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        icon = Icons.Default.Email,
+                        placeholder = "Email",
+                        keyboardType = KeyboardType.Email
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
-                    NexusTextField(value = password, onValueChange = { password = it }, icon = Icons.Default.Lock, placeholder = "Contraseña", isPassword = true, isVisible = passwordVisible, onVisibilityChange = { passwordVisible = !passwordVisible }, keyboardType = KeyboardType.Password)
+
+                    NexusTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        icon = Icons.Default.Lock,
+                        placeholder = "Contraseña",
+                        isPassword = true,
+                        isVisible = passwordVisible,
+                        onVisibilityChange = { passwordVisible = !passwordVisible },
+                        keyboardType = KeyboardType.Password
+                    )
 
                     Spacer(modifier = Modifier.height(32.dp))
 
@@ -112,20 +133,19 @@ class LoginScreen : Screen {
                                     errorMessage = null
                                     isLoading = true
 
-                                    // ✅ Capturamos el ID que devuelve el repositorio
                                     val userId = if (isRegister) {
                                         authRepository.signUp(email, password, username)
                                     } else {
                                         authRepository.login(email, password)
                                     }
 
-                                    // ✅ GUARDAMOS EL ID EN SETTINGS PARA EL SPLASH
+                                    // ✅ CAMBIO CLAVE: El AuthRepository ya guardó el token y el ID internamente.
+                                    // Solo verificamos si nos devolvió un ID válido.
                                     if (userId != null) {
-                                        authRepository.saveUserId(userId)
                                         isLoading = false
                                         navigator.replaceAll(MainScreen())
                                     } else {
-                                        throw Exception("No se pudo obtener el ID de usuario")
+                                        throw Exception("Credenciales incorrectas o error de conexión")
                                     }
 
                                 } catch (e: Exception) {
@@ -151,7 +171,16 @@ class LoginScreen : Screen {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(text = if (isRegister) "¿Ya tienes cuenta?" else "¿Nuevo en Nexus?", color = TextGray, fontSize = 14.sp)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = if (isRegister) "Entra aquí" else "Crea una", color = NexusBlue, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.clickable { isRegister = !isRegister; errorMessage = null })
+                        Text(
+                            text = if (isRegister) "Entra aquí" else "Crea una",
+                            color = NexusBlue,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            modifier = Modifier.clickable {
+                                isRegister = !isRegister
+                                errorMessage = null
+                            }
+                        )
                     }
                 }
             }
@@ -159,15 +188,46 @@ class LoginScreen : Screen {
     }
 }
 
+// Componente TextField reutilizable
 @Composable
-fun NexusTextField(value: String, onValueChange: (String) -> Unit, icon: ImageVector, placeholder: String, isPassword: Boolean = false, isVisible: Boolean = true, onVisibilityChange: () -> Unit = {}, keyboardType: KeyboardType = KeyboardType.Text) {
+fun NexusTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    icon: ImageVector,
+    placeholder: String,
+    isPassword: Boolean = false,
+    isVisible: Boolean = true,
+    onVisibilityChange: () -> Unit = {},
+    keyboardType: KeyboardType = KeyboardType.Text
+) {
     OutlinedTextField(
-        value = value, onValueChange = onValueChange, placeholder = { Text(placeholder, color = TextGray) },
+        value = value,
+        onValueChange = onValueChange,
+        placeholder = { Text(placeholder, color = TextGray) },
         leadingIcon = { Icon(icon, contentDescription = null, tint = NexusBlue) },
-        trailingIcon = if (isPassword) { { IconButton(onClick = onVisibilityChange) { Icon(imageVector = if (isVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility, contentDescription = null, tint = TextGray) } } } else null,
+        trailingIcon = if (isPassword) {
+            {
+                IconButton(onClick = onVisibilityChange) {
+                    Icon(
+                        imageVector = if (isVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        contentDescription = null,
+                        tint = TextGray
+                    )
+                }
+            }
+        } else null,
         modifier = Modifier.fillMaxWidth(),
-        colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = NexusBlack, unfocusedContainerColor = NexusBlack, focusedBorderColor = NexusBlue, unfocusedBorderColor = Color(0xFF333333), focusedTextColor = TextWhite, unfocusedTextColor = TextWhite, cursorColor = NexusBlue),
-        shape = RoundedCornerShape(12.dp), singleLine = true,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = NexusBlack,
+            unfocusedContainerColor = NexusBlack,
+            focusedBorderColor = NexusBlue,
+            unfocusedBorderColor = Color(0xFF333333),
+            focusedTextColor = TextWhite,
+            unfocusedTextColor = TextWhite,
+            cursorColor = NexusBlue
+        ),
+        shape = RoundedCornerShape(12.dp),
+        singleLine = true,
         visualTransformation = if (isPassword && !isVisible) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType)
     )

@@ -1,7 +1,7 @@
 package com.example.nexus11.data
 
+import com.example.nexus11.utils.SecurityUtils
 import com.russhwolf.settings.Settings
-import com.russhwolf.settings.set
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -13,11 +13,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.datetime.Clock
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
+import kotlinx.serialization.json.*
 
 class AuthRepository {
 
@@ -27,70 +23,91 @@ class AuthRepository {
         }
     }
 
-    // ✅ TUS DATOS REALES (EXTRAÍDOS DE TU JSON)
-    private val apiKey = "AIzaSyATeUpvFKJH7Kzf3LsU7sQOQF7wxZGUA9U"
-    private val dbUrl = "https://nexus11-8388b-default-rtdb.europe-west1.firebasedatabase.app"
-
+    private val apiKey = "AIzaSyBpF8n7JM0Au_6QXKu8kFdLL2rAyJoexBg"
+    private val dbUrl = "https://nexus11-v2-default-rtdb.europe-west1.firebasedatabase.app"
     private val firebaseAuthUrl = "https://identitytoolkit.googleapis.com/v1/accounts"
+
     private val settings: Settings = Settings()
     private val USER_KEY = "current_user_id"
+    private val TOKEN_KEY = "auth_token" // ✅ NUEVA LLAVE PARA EL TOKEN
 
-    fun saveUserId(id: String) { settings.set(USER_KEY, id) }
+    fun saveAuthData(id: String, token: String) {
+        settings.putString(USER_KEY, id)
+        settings.putString(TOKEN_KEY, token) // ✅ Guardamos la llave de acceso
+    }
+
     fun getCurrentUserId(): String? = settings.getStringOrNull(USER_KEY)
-    fun logout() = settings.remove(USER_KEY)
+    fun getAuthToken(): String? = settings.getStringOrNull(TOKEN_KEY) // ✅ Para el DataRepository
+
+    fun logout() {
+        settings.remove(USER_KEY)
+        settings.remove(TOKEN_KEY)
+    }
 
     suspend fun login(email: String, pass: String): String? {
         return try {
+            // ✅ BLINDAJE: Hasheamos antes de enviar
+            val securePass = SecurityUtils.hashPassword(pass)
+
             val bodyData = buildJsonObject {
-                put("email", email); put("password", pass); put("returnSecureToken", true)
+                put("email", email)
+                put("password", securePass)
+                put("returnSecureToken", true)
             }
-            // Importante: quitamos los dos puntos extra en la URL que a veces dan problemas
             val response = httpClient.post("$firebaseAuthUrl:signInWithPassword?key=$apiKey") {
                 contentType(ContentType.Application.Json)
                 setBody(bodyData)
             }
 
             if (response.status == HttpStatusCode.OK) {
-                val json = response.body<JsonObject>()
-                val localId = json["localId"]?.jsonPrimitive?.content
-                if (localId != null) saveUserId(localId)
-                localId
-            } else {
-                println("⚠️ ERROR LOGIN: ${response.body<String>()}")
-                null
-            }
-        } catch (e: Exception) {
-            println("❌ EXCEPCIÓN LOGIN: ${e.message}")
-            null
-        }
+                val resJson = response.body<JsonObject>()
+                val localId = resJson["localId"]?.jsonPrimitive?.content
+                val idToken = resJson["idToken"]?.jsonPrimitive?.content // ✅ EL TOKEN
+
+                if (localId != null && idToken != null) {
+                    saveAuthData(localId, idToken)
+                    localId
+                } else null
+            } else null
+        } catch (e: Exception) { null }
     }
 
     suspend fun signUp(email: String, pass: String, username: String): String? {
         return try {
+            val securePass = SecurityUtils.hashPassword(pass)
+
             val bodyData = buildJsonObject {
-                put("email", email); put("password", pass); put("returnSecureToken", true)
+                put("email", email)
+                put("password", securePass)
+                put("returnSecureToken", true)
             }
             val response = httpClient.post("$firebaseAuthUrl:signUp?key=$apiKey") {
-                contentType(ContentType.Application.Json); setBody(bodyData)
+                contentType(ContentType.Application.Json)
+                setBody(bodyData)
             }
             if (response.status == HttpStatusCode.OK) {
-                val json = response.body<JsonObject>()
-                val localId = json["localId"]?.jsonPrimitive?.content ?: return null
+                val resJson = response.body<JsonObject>()
+                val localId = resJson["localId"]?.jsonPrimitive?.content ?: return null
+                val idToken = resJson["idToken"]?.jsonPrimitive?.content ?: return null
 
-                val timestamp = Clock.System.now().toEpochMilliseconds()
+                // Creamos el perfil inicial
                 val userProfile = buildJsonObject {
-                    put("id", localId); put("username", username); put("email", email)
-                    put("joinedAt", timestamp); put("profileImageUrl", "")
+                    put("id", localId)
+                    put("username", username)
+                    put("email", email)
+                    put("joinedAt", Clock.System.now().toEpochMilliseconds())
+                    put("themeColorHex", 0xFF2196F3) // Color por defecto
                 }
-                httpClient.put("$dbUrl/users/$localId.json") {
-                    contentType(ContentType.Application.Json); setBody(userProfile)
+
+                // ✅ IMPORTANTE: Usamos el token para poder escribir en la DB protegida
+                httpClient.put("$dbUrl/users/$localId.json?auth=$idToken") {
+                    contentType(ContentType.Application.Json)
+                    setBody(userProfile)
                 }
-                saveUserId(localId)
+
+                saveAuthData(localId, idToken)
                 localId
-            } else {
-                println("⚠️ ERROR SIGNUP: ${response.body<String>()}")
-                null
-            }
+            } else null
         } catch (e: Exception) { null }
     }
 }

@@ -7,7 +7,7 @@ data class Story(
     val id: String = "",
     val userId: String = "",
     val username: String = "",
-    val userAvatarUrl: String? = null,
-    val imageUrl: String = "", // Las historias siempre tienen foto
+    val userAvatar: String? = null,
+    val imageUrl: String = "",
     val timestamp: Long = 0
 )

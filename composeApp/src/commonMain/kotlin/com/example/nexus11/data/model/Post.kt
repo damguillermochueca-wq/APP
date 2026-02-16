@@ -7,11 +7,17 @@ data class Post(
     val id: String = "",
     val userId: String = "",
     val username: String = "",
-    // ✅ AÑADIDO: Ahora guardamos la foto del usuario en el post
     val userAvatarUrl: String? = null,
-    val imageUrl: String?= null,
+    val imageUrl: String? = null,
     val description: String = "",
     val timestamp: Long = 0L,
+
+    // Mantenemos esto por si tienes posts antiguos y que no pete la app
     val likes: Int = 0,
+
+    // ✅ NUEVO: Control estricto de 1 Like por persona
+    val likedBy: Map<String, Boolean> = emptyMap(),
+
+    // ✅ NUEVO: Mapa de comentarios para poder leerlos
     val comments: Map<String, String> = emptyMap()
 )

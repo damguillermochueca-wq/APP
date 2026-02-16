@@ -1,4 +1,4 @@
-package com.example.nexus11.ui.screens
+package com.example.nexus11
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
@@ -35,26 +35,22 @@ class MainScreen : Screen {
         val repo = remember { DataRepository() }
         val myId = authRepo.getCurrentUserId()
 
-        // 🎨 LEEMOS EL COLOR (Naranja)
-        // Como es un estado reactivo, si cambia en Ajustes, aquí se actualiza solo.
+        // 🎨 COLOR: Leemos de AppCache (que ya tiene el Naranja guardado)
         val themeColor = AppCache.themeColor
 
         LaunchedEffect(myId) {
             if (myId != null) {
-                // 1. Cargamos datos del usuario (Nombre, Foto, etc.)
+                // 1. Cargamos usuario solo para actualizar datos (nombre, foto...)
                 try {
                     val me = repo.getUser(myId)
                     if (me != null) {
                         AppCache.users[myId] = me
-
-                        // 🛑 ¡IMPORTANTE! 🛑
-                        // AQUÍ NO HAY NADA SOBRE themeColor.
-                        // Si hubiera una línea como "AppCache.themeColor = ...", BORRALA.
-                        // El color lo manda el disco local (Ajustes), no la base de datos (que puede ser lenta).
+                        // 🔴 ELIMINADO: No sobrescribimos el color aquí.
+                        // Dejamos que AppCache mande con lo que tiene en disco.
                     }
                 } catch (e: Exception) { }
 
-                // 2. Heartbeat (Mantenerse en línea)
+                // 2. Heartbeat
                 while (true) {
                     repo.sendHeartbeat(myId)
                     delay(60_000)
@@ -65,10 +61,11 @@ class MainScreen : Screen {
         TabNavigator(HomeTab) {
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.background,
+                // Barra inferior
                 bottomBar = {
                     NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.background,
-                        contentColor = themeColor, // Usamos el color Naranja aquí
+                        containerColor = MaterialTheme.colorScheme.background, // Se adapta al tema
+                        contentColor = themeColor,
                         tonalElevation = 8.dp
                     ) {
                         TabNavigationItem(HomeTab)
@@ -85,9 +82,6 @@ class MainScreen : Screen {
         }
     }
 }
-
-// ... (El resto del archivo TabNavigationItem, HomeTab, ChatTab, AddPostTab, ProfileTab sigue igual)
-// Asegúrate de copiar también las Tabs que tenías abajo o déjalas como están si no las has borrado.
 
 @Composable
 private fun RowScope.TabNavigationItem(tab: Tab) {
@@ -124,24 +118,54 @@ private fun RowScope.TabNavigationItem(tab: Tab) {
     )
 }
 
+// --- TABS ---
+
 object HomeTab : Tab {
-    override val options: TabOptions @Composable get() { val icon = rememberVectorPainter(Icons.Default.Home); return remember { TabOptions(index = 0u, title = "Inicio", icon = icon) } }
-    @Composable override fun Content() { Navigator(HomeScreen()) { SlideTransition(it) } }
+    override val options: TabOptions
+        @Composable get() {
+            val icon = rememberVectorPainter(Icons.Default.Home)
+            return remember { TabOptions(index = 0u, title = "Inicio", icon = icon) }
+        }
+    @Composable
+    override fun Content() { Navigator(HomeScreen()) { SlideTransition(it) } }
 }
+
 object ChatTab : Tab {
-    override val options: TabOptions @Composable get() { val icon = rememberVectorPainter(Icons.Default.Chat); return remember { TabOptions(index = 1u, title = "Chats", icon = icon) } }
-    @Composable override fun Content() { Navigator(ChatListScreen()) { SlideTransition(it) } }
+    override val options: TabOptions
+        @Composable get() {
+            val icon = rememberVectorPainter(Icons.Default.Chat)
+            return remember { TabOptions(index = 1u, title = "Chats", icon = icon) }
+        }
+    @Composable
+    override fun Content() { Navigator(ChatListScreen()) { SlideTransition(it) } }
 }
+
 object AddPostTab : Tab {
-    override val options: TabOptions @Composable get() { val icon = rememberVectorPainter(Icons.Default.AddBox); return remember { TabOptions(index = 2u, title = "Crear", icon = icon) } }
-    @Composable override fun Content() { Navigator(CreatePostScreen()) { SlideTransition(it) } }
+    override val options: TabOptions
+        @Composable get() {
+            val icon = rememberVectorPainter(Icons.Default.AddBox)
+            return remember { TabOptions(index = 2u, title = "Crear", icon = icon) }
+        }
+    @Composable
+    override fun Content() { Navigator(CreatePostScreen()) { SlideTransition(it) } }
 }
+
 object ProfileTab : Tab {
-    override val options: TabOptions @Composable get() { val icon = rememberVectorPainter(Icons.Default.Person); return remember { TabOptions(index = 3u, title = "Perfil", icon = icon) } }
-    @Composable override fun Content() {
+    override val options: TabOptions
+        @Composable get() {
+            val icon = rememberVectorPainter(Icons.Default.Person)
+            return remember { TabOptions(index = 3u, title = "Perfil", icon = icon) }
+        }
+
+    @Composable
+    override fun Content() {
         val authRepo = remember { AuthRepository() }
         val myId = authRepo.getCurrentUserId() ?: ""
-        // Usamos Navigator para que Settings tape la barra inferior
-        Navigator(ProfileScreen(userId = myId, isExternal = false)) { SlideTransition(it) }
+        
+        // ✅ CORRECCIÓN: Usamos Navigator para que funcionen Ajustes y Buscar
+        // Y NO pasamos isExternal=true porque estamos dentro del menú principal
+        Navigator(ProfileScreen(userId = myId, isExternal = false)) { 
+            SlideTransition(it) 
+        }
     }
 }
