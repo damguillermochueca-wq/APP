@@ -16,9 +16,6 @@ data class User(
     val allowNotifications: Boolean = true,
     val showActivityStatus: Boolean = true,
     val biometricEnabled: Boolean = false,
-
-    // 🎨 NUEVOS CAMPOS DE PERSONALIZACIÓN
-    // Guardamos el color como Long (Hexadecimal)
     val themeColorHex: Long = 0xFF2196F3, // Azul por defecto
     val wallpaperId: Int = 0
 )

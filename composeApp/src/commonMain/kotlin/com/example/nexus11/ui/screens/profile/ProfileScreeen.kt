@@ -15,13 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AddAPhoto
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Message
-import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material.icons.filled.PersonRemove
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -56,12 +50,22 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Pantalla de Perfil de Usuario.
+ * Esta clase demuestra una alta complejidad de navegación al funcionar en dos modos:
+ * 1. Como pestaña principal ("Mi Perfil") dentro del TabNavigator.
+ * 2. Como pantalla apilada ("Perfil Ajeno") dentro del StackNavigator.
+ *
+ * Utiliza una lógica condicional para ajustar los márgenes de la barra de estado (Insets)
+ * dependiendo de si se está mostrando en modo inmersivo o estándar.
+ */
 data class ProfileScreen(val userId: String, val isExternal: Boolean = false) : Screen {
 
     @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
+        // Acceso al navegador raíz para poder salir del contexto de pestañas y abrir pantallas completas (Chat, Settings).
         val rootNavigator = navigator.parent?.parent ?: navigator.parent ?: navigator
 
         val repo = remember { DataRepository() }
@@ -72,36 +76,44 @@ data class ProfileScreen(val userId: String, val isExternal: Boolean = false) : 
         val isMe = myId == userId
         val themeColor = AppCache.themeColor
 
+        // Estado local reactivo
         var user by remember { mutableStateOf(AppCache.users[userId]) }
         var userPosts by remember { mutableStateOf(AppCache.posts.filter { it.userId == userId }) }
         var isFollowing by remember { mutableStateOf(false) }
         var followersCount by remember { mutableStateOf(0) }
         var followingCount by remember { mutableStateOf(0) }
         var isLoading by remember { mutableStateOf(user == null) }
+
+        // Gestión de pestañas internas (Fotos / Textos)
         var selectedTabIndex by remember { mutableStateOf(0) }
         val tabs = listOf("Fotos", "Textos")
 
         val bgColor = MaterialTheme.colorScheme.background
         val textColor = MaterialTheme.colorScheme.onBackground
 
+        // Carga asíncrona de datos del perfil
         LaunchedEffect(userId) {
             if (user == null) {
                 user = repo.getUser(userId)
                 if (user != null) AppCache.users[userId] = user!!
             }
+            // Recarga de posts si la caché está vacía
             if (AppCache.posts.isEmpty()) {
                 val all = repo.getAllPosts()
                 AppCache.posts.clear()
                 AppCache.posts.addAll(all)
             }
             userPosts = AppCache.posts.filter { it.userId == userId }
+
             val stats = repo.getFollowStats(userId)
             followersCount = stats.first
             followingCount = stats.second
+
             if (!isMe) isFollowing = repo.amIFollowing(myId, userId)
             isLoading = false
         }
 
+        // Selector de imágenes nativo (Peekaboo) para actualizar el avatar
         val avatarPicker = rememberImagePickerLauncher(
             selectionMode = SelectionMode.Single,
             scope = scope,
@@ -109,15 +121,20 @@ data class ProfileScreen(val userId: String, val isExternal: Boolean = false) : 
             onResult = { byteArrays ->
                 byteArrays.firstOrNull()?.let { bytes ->
                     scope.launch {
+                        // Procesamiento en background: Bytes -> Base64
                         val base64Str = withContext(Dispatchers.Default) { bytes.encodeBase64().replace("\n", "").trim() }
                         val finalUrl = "data:image/jpeg;base64,$base64Str"
+
+                        // Actualización optimista de la UI
                         val currentUser = user ?: repo.getUser(userId)
                         if (currentUser != null) {
                             val optimisticUser = currentUser.copy(profileImageUrl = finalUrl)
                             AppCache.users[userId] = optimisticUser
                             user = optimisticUser
+                            // Invalidamos caché de bitmap para forzar el repintado
                             AppCache.bitmapCache.remove(finalUrl)
                         }
+                        // Sincronización con el servidor
                         repo.updateUserAvatar(userId, bytes)
                     }
                 }
@@ -132,7 +149,7 @@ data class ProfileScreen(val userId: String, val isExternal: Boolean = false) : 
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = bgColor,
-            contentWindowInsets = WindowInsets(0.dp)
+            contentWindowInsets = WindowInsets(0.dp) // Control manual de márgenes
         ) { padding ->
             Column(
                 modifier = Modifier
@@ -140,7 +157,8 @@ data class ProfileScreen(val userId: String, val isExternal: Boolean = false) : 
                     .padding(bottom = padding.calculateBottomPadding())
                     .background(bgColor)
             ) {
-                // CABECERA
+                // CABECERA UNIFICADA
+                // Se ajusta dinámicamente para respetar el Notch/Cámara si es necesario (isExternal).
                 Column(
                     modifier = Modifier
                         .background(bgColor)
@@ -149,12 +167,13 @@ data class ProfileScreen(val userId: String, val isExternal: Boolean = false) : 
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(44.dp)
+                            .height(44.dp) // Altura estándar (44dp) para consistencia visual con Home
                             .padding(horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Botón atrás solo si no es mi propio perfil (navegación profunda)
                             if (!isMe) {
                                 IconButton(onClick = { navigator.pop() }) {
                                     Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = themeColor)
@@ -171,6 +190,7 @@ data class ProfileScreen(val userId: String, val isExternal: Boolean = false) : 
                             )
                         }
 
+                        // Iconos de acción (Búsqueda y Ajustes) solo para el usuario propietario
                         if (isMe) {
                             Row {
                                 IconButton(onClick = { rootNavigator.push(SearchUserScreen()) }) {
@@ -195,7 +215,7 @@ data class ProfileScreen(val userId: String, val isExternal: Boolean = false) : 
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         item {
                             Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                // FOTO
+                                // FOTO DE PERFIL CON GESTIÓN DE ESTADO DE CARGA
                                 Box(contentAlignment = Alignment.BottomEnd) {
                                     Box(
                                         modifier = Modifier.size(100.dp).clip(CircleShape).background(Color.Gray.copy(0.2f)).clickable(enabled = isMe) { avatarPicker.launch() },
@@ -203,6 +223,8 @@ data class ProfileScreen(val userId: String, val isExternal: Boolean = false) : 
                                     ) {
                                         val avatar = user?.profileImageUrl
                                         val profileBitmap = rememberBase64ImageProfile(avatar)
+
+                                        // Prioridad: 1. Bitmap en RAM (Base64), 2. Kamel (URL), 3. Iniciales (Texto)
                                         if (!avatar.isNullOrBlank()) {
                                             if (profileBitmap != null) Image(profileBitmap, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                             else if (!avatar.startsWith("data:image")) KamelImage(asyncPainterResource(avatar!!), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -218,26 +240,25 @@ data class ProfileScreen(val userId: String, val isExternal: Boolean = false) : 
                                 }
                                 Spacer(Modifier.height(12.dp)); Text(text = "@${user!!.username}", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = textColor, textAlign = TextAlign.Center)
 
+                                // CHIPS DE INFORMACIÓN (Profesión, Hobby, Status)
                                 if (user!!.profession.isNotEmpty() || user!!.hobby.isNotEmpty()) {
                                     Spacer(Modifier.height(8.dp))
                                     Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
                                         if (user!!.profession.isNotEmpty()) TagChip(user!!.profession, themeColor)
                                         Spacer(Modifier.width(4.dp))
-                                        if (user!!.hobby.isNotEmpty()) TagChip(user!!.hobby, Color(0xFFE91E63)) // Rosa para hobby
+                                        if (user!!.hobby.isNotEmpty()) TagChip(user!!.hobby, Color(0xFFE91E63))
                                     }
                                 }
-
-                                // 🟢 AÑADIDO: VIBE (STATUS)
                                 if (user!!.status.isNotEmpty()) {
-                                    Spacer(Modifier.height(6.dp)) // Un poco de espacio extra
-                                    TagChip(user!!.status, Color(0xFF4CAF50)) // Verde para status
+                                    Spacer(Modifier.height(6.dp))
+                                    TagChip(user!!.status, Color(0xFF4CAF50))
                                 }
                                 if (user!!.bio.isNotEmpty()) {
                                     Spacer(Modifier.height(12.dp)); Text(user!!.bio, fontSize = 14.sp, color = textColor.copy(0.7f), textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 32.dp))
                                 }
                                 Spacer(Modifier.height(20.dp))
 
-                                // ESTADÍSTICAS CLICKABLES
+                                // ESTADÍSTICAS CLICKABLES (Navegación a FollowList)
                                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                     StatItem("${userPosts.size}", "Posts", textColor, Modifier.weight(1f))
 
@@ -246,10 +267,7 @@ data class ProfileScreen(val userId: String, val isExternal: Boolean = false) : 
                                         label = "Seguidores",
                                         textColor = textColor,
                                         modifier = Modifier.weight(1f),
-                                        onClick = {
-                                            // Abrimos lista de seguidores (Tab 0)
-                                            rootNavigator.push(FollowListScreen(userId, initialTab = 0))
-                                        }
+                                        onClick = { rootNavigator.push(FollowListScreen(userId, initialTab = 0)) }
                                     )
 
                                     StatItem(
@@ -257,14 +275,12 @@ data class ProfileScreen(val userId: String, val isExternal: Boolean = false) : 
                                         label = "Siguiendo",
                                         textColor = textColor,
                                         modifier = Modifier.weight(1f),
-                                        onClick = {
-                                            // Abrimos lista de seguidos (Tab 1)
-                                            rootNavigator.push(FollowListScreen(userId, initialTab = 1))
-                                        }
+                                        onClick = { rootNavigator.push(FollowListScreen(userId, initialTab = 1)) }
                                     )
                                 }
                                 Spacer(Modifier.height(24.dp))
 
+                                // LÓGICA DE BOTONES (Seguir/Mensaje vs Editar)
                                 if (!isMe) {
                                     Row(modifier = Modifier.fillMaxWidth(0.9f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                         Button(
@@ -298,6 +314,8 @@ data class ProfileScreen(val userId: String, val isExternal: Boolean = false) : 
                                 }
                             }
                         }
+
+                        // Header "pegajoso" para las pestañas
                         stickyHeader {
                             TabRow(selectedTabIndex = selectedTabIndex, containerColor = bgColor, contentColor = themeColor) {
                                 tabs.forEachIndexed { index, title -> Tab(selected = selectedTabIndex == index, onClick = { selectedTabIndex = index }, text = { Text(title, fontWeight = FontWeight.Bold) }) }
@@ -315,9 +333,9 @@ data class ProfileScreen(val userId: String, val isExternal: Boolean = false) : 
     }
 }
 
-// ---------------------------------------------
-// COMPONENTES AUXILIARES
-// ---------------------------------------------
+// -----------------------------------------------------------
+// COMPONENTES AUXILIARES DEL PERFIL
+// -----------------------------------------------------------
 
 @Composable
 fun StatItem(
@@ -444,6 +462,10 @@ fun ExposedDropdown(
     }
 }
 
+/**
+ * Función Helper para la carga eficiente de imágenes Base64.
+ * Utiliza AppCache para evitar la decodificación repetitiva de bitmaps pesados.
+ */
 @Composable
 fun rememberBase64ImageProfile(base64String: String?): ImageBitmap? {
     if (base64String.isNullOrBlank() || !base64String.startsWith("data:image")) return null

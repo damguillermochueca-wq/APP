@@ -43,8 +43,6 @@ data class FollowListScreen(
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repo = remember { DataRepository() }
-
-        // 🎨 COLOR TEMA: Usamos el de AppCache
         val themeColor = AppCache.themeColor
 
         var selectedTab by remember { mutableStateOf(initialTab) }
@@ -57,12 +55,12 @@ data class FollowListScreen(
         val bgColor = MaterialTheme.colorScheme.background
         val textColor = MaterialTheme.colorScheme.onBackground
 
+        // Carga eficiente de listas: Solo pide IDs y completa los usuarios desde la caché si existen.
         LaunchedEffect(userId) {
             try {
                 val followerIds = repo.getFollowersIds(userId)
                 val followingIds = repo.getFollowingIds(userId)
 
-                // Cacheo preventivo
                 if (AppCache.users.isEmpty()) {
                     val allUsers = repo.getAllUsers()
                     allUsers.forEach { AppCache.users[it.id] = it }
@@ -88,7 +86,7 @@ data class FollowListScreen(
                 Column(
                     modifier = Modifier
                         .background(bgColor)
-                        .statusBarsPadding() // 🔴 IMPORTANTE: Baja la barra para no tocar el reloj
+                        .statusBarsPadding()
                 ) {
                     Row(
                         modifier = Modifier
@@ -106,7 +104,7 @@ data class FollowListScreen(
                     TabRow(
                         selectedTabIndex = selectedTab,
                         containerColor = bgColor,
-                        contentColor = themeColor, // Color del tema (Naranja/Azul)
+                        contentColor = themeColor,
                         divider = { HorizontalDivider(color = textColor.copy(0.1f)) }
                     ) {
                         tabs.forEachIndexed { index, title ->
@@ -140,7 +138,8 @@ data class FollowListScreen(
                         LazyColumn(Modifier.fillMaxSize()) {
                             items(listToShow) { user ->
                                 UserRowItem(user, textColor) {
-                                    // isExternal = true para que el perfil hijo tenga espacio arriba
+                                    // Pasamos isExternal = true para que la nueva pantalla sepa que viene de una pila
+                                    // y ajuste su cabecera para no chocar con el reloj.
                                     navigator.push(ProfileScreen(user.id, isExternal = true))
                                 }
                             }
@@ -152,6 +151,7 @@ data class FollowListScreen(
     }
 }
 
+// ... (UserRowItem y helper de imagen se mantienen igual que en el original)
 @Composable
 fun UserRowItem(user: User, textColor: Color, onClick: () -> Unit) {
     // Usamos el cargador con caché global

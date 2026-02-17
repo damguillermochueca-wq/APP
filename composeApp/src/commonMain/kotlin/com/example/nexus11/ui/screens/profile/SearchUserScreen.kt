@@ -41,20 +41,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Pantalla de Búsqueda de Usuarios.
+ * Utiliza filtrado local para respuesta inmediata al teclear.
+ */
 class SearchUserScreen : Screen {
 
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repo = remember { DataRepository() }
-        val authRepo = remember { AuthRepository() } // 🟢 Necesitamos esto
+        val authRepo = remember { AuthRepository() }
         val themeColor = AppCache.themeColor
         val focusManager = LocalFocusManager.current
         val scope = rememberCoroutineScope()
 
-        val myId = remember { authRepo.getCurrentUserId() ?: "" } // 🟢 Obtenemos mi ID
+        val myId = remember { authRepo.getCurrentUserId() ?: "" }
 
         var searchQuery by remember { mutableStateOf("") }
+        // Cargamos todos los usuarios al entrar para filtrar rápidamente en RAM
         var allUsers by remember { mutableStateOf<List<User>>(emptyList()) }
         var isLoading by remember { mutableStateOf(true) }
 
@@ -64,12 +69,13 @@ class SearchUserScreen : Screen {
         LaunchedEffect(Unit) {
             scope.launch {
                 val users = repo.getAllUsers()
-                // 🟢 FILTRO: Quitamos mi usuario de la lista
+                // Filtramos para no mostrarnos a nosotros mismos en la búsqueda
                 allUsers = users.filter { it.id != myId }
                 isLoading = false
             }
         }
 
+        // Lógica de filtrado reactiva
         val filteredUsers = remember(searchQuery, allUsers) {
             if (searchQuery.isBlank()) {
                 emptyList()
@@ -103,6 +109,7 @@ class SearchUserScreen : Screen {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = themeColor)
                         }
 
+                        // Campo de búsqueda con diseño personalizado
                         TextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
@@ -169,6 +176,7 @@ class SearchUserScreen : Screen {
 
                             items(filteredUsers) { user ->
                                 UserResultItem(user, themeColor, textColor) {
+                                    // Abrimos perfil en modo externo (con cabecera ajustada)
                                     navigator.push(ProfileScreen(user.id, isExternal = true))
                                 }
                             }

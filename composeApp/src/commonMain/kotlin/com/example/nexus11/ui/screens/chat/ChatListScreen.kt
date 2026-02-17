@@ -35,10 +35,16 @@ import io.kamel.image.KamelImage
 import io.kamel.image.asyncPainterResource
 import kotlinx.datetime.Clock
 
+/**
+ * Pantalla que muestra la lista de conversaciones activas.
+ */
 class ChatListScreen : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
+
+        // RootNavigator: Necesario para navegar fuera de las pestañas principales (Tabs)
+        // y mostrar el chat en pantalla completa.
         val rootNavigator = remember(navigator) {
             var nav = navigator
             while (nav.parent != null) {
@@ -56,6 +62,7 @@ class ChatListScreen : Screen {
         val bgColor = MaterialTheme.colorScheme.background
         val textColor = MaterialTheme.colorScheme.onBackground
 
+        // Loop de actualización automática de la lista de chats
         LaunchedEffect(Unit) {
             val user = authRepo.getCurrentUserId()
             if (user != null) myId = user
@@ -64,6 +71,7 @@ class ChatListScreen : Screen {
                 try {
                     if (myId.isNotEmpty()) {
                         val newChats = repo.getMyChats(myId)
+                        // Actualización eficiente: Solo refresca si hay cambios reales
                         if (newChats.size != chats.size || newChats.firstOrNull()?.second?.timestamp != chats.firstOrNull()?.second?.timestamp) {
                             chats = newChats
                             AppCache.chatList = newChats
@@ -130,16 +138,16 @@ class ChatListScreen : Screen {
                                     repo = repo,
                                     textColor = textColor,
                                     onClick = { name ->
-                                        // ⚡ CORRECCIÓN CRÍTICA: Actualizamos la Caché Global TAMBIÉN
-                                        // Esto evita que el punto azul vuelva a aparecer al volver atrás
+                                        // CORRECCIÓN CRÍTICA DE ESTADO:
+                                        // Actualizamos caché y UI para marcar como leído inmediatamente
+                                        // y evitar el "punto azul" fantasma al volver atrás.
                                         val updatedChats = chats.map { (id, msg) ->
                                             if (id == chatId) id to msg.copy(isRead = true) else id to msg
                                         }
 
-                                        chats = updatedChats       // Actualizamos UI
-                                        AppCache.chatList = updatedChats // Actualizamos Caché (IMPORTANTE)
+                                        chats = updatedChats
+                                        AppCache.chatList = updatedChats
 
-                                        // Navegamos
                                         rootNavigator.push(ChatDetailScreen(chatId, otherUserId, name))
                                     }
                                 )
@@ -161,6 +169,7 @@ fun ChatRowItem(
     textColor: Color,
     onClick: (String) -> Unit
 ) {
+    // Recuperación de usuario optimizada desde caché
     var otherUser by remember(otherUserId) { mutableStateOf(AppCache.users[otherUserId]) }
 
     LaunchedEffect(otherUserId) {
@@ -184,7 +193,7 @@ fun ChatRowItem(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // AVATAR CON PUNTO VERDE
+        // AVATAR + INDICADOR DE ONLINE
         Box(contentAlignment = Alignment.BottomEnd) {
             Box(
                 modifier = Modifier.size(52.dp).clip(CircleShape).background(Color.Gray.copy(0.2f)),
@@ -197,6 +206,7 @@ fun ChatRowItem(
                 }
             }
 
+            // Lógica visual de estado Online (última actividad < 5 min)
             otherUser?.let { user ->
                 val now = Clock.System.now().toEpochMilliseconds()
                 val diff = now - user.lastActive
@@ -215,6 +225,7 @@ fun ChatRowItem(
 
         Spacer(Modifier.width(16.dp))
 
+        // CONTENIDO DEL CHAT (Nombre + Último mensaje)
         Column(modifier = Modifier.weight(1f)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(displayName, fontWeight = FontWeight.Bold, color = textColor, fontSize = 16.sp)
@@ -248,6 +259,7 @@ fun ChatRowItem(
             }
         }
 
+        // Punto azul de no leído
         if (!lastMsg.isRead && lastMsg.senderId != myId) {
             Box(Modifier.size(10.dp).background(NexusBlue, CircleShape))
         }

@@ -19,10 +19,15 @@ import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import kotlinx.serialization.json.*
 
+/**
+ * Repositorio Central de Datos.
+ * Gestiona toda la lógica de negocio, red y sincronización con Firebase Database.
+ * Integra la seguridad mediante la inyección automática del token de sesión.
+ */
 class DataRepository {
     private val dbUrl = "https://nexus11-v2-default-rtdb.europe-west1.firebasedatabase.app/"
 
-    // ✅ AUTH INTEGRATION: We need the AuthRepository to get the secure token
+    // Dependencia del AuthRepository para recuperar credenciales seguras.
     private val authRepo = AuthRepository()
 
     private val jsonConfig = Json {
@@ -37,16 +42,15 @@ class DataRepository {
         }
     }
 
-    // 🛡️ SECURITY SHIELD: Helper to append the auth token to every request
+    // CAPA DE SEGURIDAD: Método helper que adjunta el token JWT a cada petición.
+    // Esto es necesario para cumplir las Reglas de Seguridad de Firebase (Read/Write auth != null).
     private fun getAuthUrl(path: String): String {
         val token = authRepo.getAuthToken()
-        // If token is null, the request might fail if rules are enforced,
-        // but the app won't crash, just return unauthorized.
         return if (token != null) "$dbUrl/$path?auth=$token" else "$dbUrl/$path"
     }
 
     // ----------------------------------------------------------------
-    // 👤 USUARIOS Y PERFIL
+    // GESTIÓN DE USUARIOS Y PERFIL
     // ----------------------------------------------------------------
 
     suspend fun getUser(userId: String): User? {
@@ -71,6 +75,7 @@ class DataRepository {
         } catch (e: Exception) { }
     }
 
+    // Actualización optimizada de avatar: Primero sube la imagen, luego actualiza el link.
     suspend fun updateUserAvatar(userId: String, imageBytes: ByteArray) {
         val imageUrl = uploadImage(imageBytes)
         if (imageUrl != null) {
@@ -98,9 +103,15 @@ class DataRepository {
     }
 
     // ----------------------------------------------------------------
-    // ⚙️ AJUSTES Y ACTIVIDAD (V5 + BLINDAJE)
+    // SISTEMA DE PERSONALIZACIÓN (Fix V5)
     // ----------------------------------------------------------------
 
+    /**
+     * Actualiza la apariencia del usuario con persistencia híbrida.
+     * 1. Actualiza RAM (AppCache) para feedback instantáneo.
+     * 2. Persiste en Disco como HexString para evitar corrupción de datos.
+     * 3. Sincroniza con la Nube.
+     */
     suspend fun updateUserAppearance(userId: String, colorHex: Long, wallpaper: Int) {
         // 1. RAM
         AppCache.themeColor = Color(colorHex.toInt())
@@ -126,6 +137,7 @@ class DataRepository {
         } catch (e: Exception) { }
     }
 
+    // Actualización atómica de configuraciones de privacidad y UI.
     suspend fun updateUserSettings(
         userId: String,
         allowNotif: Boolean,
@@ -133,14 +145,11 @@ class DataRepository {
         biometricEnabled: Boolean,
         themeColorHex: Long
     ) {
-        // RAM
+        // Actualización RAM y Disco local inmediata
         AppCache.themeColor = Color(themeColorHex.toInt())
-
-        // DISCO
         val hexString = (themeColorHex and 0xFFFFFFFFL).toString(16).uppercase()
         AppCache.settings.putString("local_theme_color_v5", hexString)
 
-        // RAM User
         val currentUser = AppCache.users[userId]
         if (currentUser != null) {
             AppCache.users[userId] = currentUser.copy(
@@ -151,7 +160,7 @@ class DataRepository {
             )
         }
 
-        // Firebase (Secured)
+        // Sincronización Nube
         try {
             client.patch(getAuthUrl("users/$userId.json")) {
                 contentType(ContentType.Application.Json)
@@ -165,6 +174,7 @@ class DataRepository {
         } catch (e: Exception) { }
     }
 
+    // Heartbeat para sistema de presencia (Online/Offline)
     suspend fun sendHeartbeat(userId: String) {
         try {
             val now = Clock.System.now().toEpochMilliseconds()
@@ -176,12 +186,13 @@ class DataRepository {
     }
 
     // ----------------------------------------------------------------
-    // 📝 PUBLICACIONES (POSTS)
+    // GESTIÓN DE PUBLICACIONES (POSTS)
     // ----------------------------------------------------------------
 
     suspend fun getAllPosts(): List<Post> {
         return try {
             val response: Map<String, Post>? = client.get(getAuthUrl("posts.json")).body()
+            // Mapeo del ID (Key) al objeto y ordenación cronológica inversa.
             response?.map { entry ->
                 entry.value.copy(id = entry.key)
             }?.sortedByDescending { it.timestamp } ?: emptyList()
@@ -223,12 +234,12 @@ class DataRepository {
     }
 
     // ----------------------------------------------------------------
-    // 🌟 HISTORIAS (STORIES)
+    // HISTORIAS EFÍMERAS (STORIES)
     // ----------------------------------------------------------------
 
     suspend fun getActiveStories(): List<Story> = try {
         val now = Clock.System.now().toEpochMilliseconds()
-        val oneDayAgo = now - (24 * 60 * 60 * 1000)
+        val oneDayAgo = now - (24 * 60 * 60 * 1000) // Lógica de caducidad (24h)
 
         val response: Map<String, Story>? = client.get(getAuthUrl("stories.json")).body()
 
@@ -248,9 +259,10 @@ class DataRepository {
     }
 
     // ----------------------------------------------------------------
-    // 💬 CHATS Y MENSAJERÍA
+    // CHATS Y MENSAJERÍA
     // ----------------------------------------------------------------
 
+    // Genera un ID de chat determinista para usuarios únicos (ej: A_B es igual a B_A)
     fun getChatId(user1: String, user2: String): String {
         return if (user1 < user2) "${user1}_$user2" else "${user2}_$user1"
     }
@@ -263,7 +275,6 @@ class DataRepository {
                 if (!chatId.contains(myId)) return@mapNotNull null
                 try {
                     val chatObj = chatElement.jsonObject
-                    // Safe check for messages object
                     if (!chatObj.containsKey("messages")) return@mapNotNull null
 
                     val messagesElement = chatObj["messages"]!!.jsonObject
@@ -364,11 +375,12 @@ class DataRepository {
     }
 
     // ----------------------------------------------------------------
-    // 🤝 SEGUIDORES Y FOLLOW
+    // SEGUIDORES Y RED SOCIAL
     // ----------------------------------------------------------------
 
     suspend fun followUser(myId: String, targetId: String) {
         try {
+            // Actualización dual: Yo sigo a X / X es seguido por Mí
             client.patch(getAuthUrl("following/$myId.json")) {
                 contentType(ContentType.Application.Json)
                 setBody(mapOf(targetId to true))
@@ -430,12 +442,17 @@ class DataRepository {
     }
 
     // ----------------------------------------------------------------
-    // 📸 UTILIDADES DE IMAGEN
+    // UTILIDADES DE IMAGEN
     // ----------------------------------------------------------------
 
+    /**
+     * Convierte bytes a Base64 estándar.
+     * Se ejecuta en Dispatchers.Default para no bloquear el hilo principal de la UI.
+     */
     suspend fun uploadImage(imageBytes: ByteArray): String? = withContext(Dispatchers.Default) {
         try {
             val base64 = imageBytes.encodeBase64()
+            // Limpieza de caracteres de control para compatibilidad multiplataforma
             val cleanBase64 = base64.replace("\n", "").replace("\r", "").trim()
             "data:image/jpeg;base64,$cleanBase64"
         } catch (e: Exception) { null }

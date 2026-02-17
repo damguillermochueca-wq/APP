@@ -10,7 +10,7 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-// --- MODELOS DE DATOS (Cópialos aquí mismo) ---
+// --- MODELOS DE DATOS (Data Transfer Objects) ---
 
 @Serializable
 data class ChatPreview(
@@ -29,15 +29,16 @@ data class Message(
     val timestamp: Long = 0L
 )
 
-// --- EL REPOSITORIO ---
-
+/**
+ * Repositorio específico para la lógica de Chat en tiempo real.
+ */
 class ChatRepository {
-    // Tu URL de Firebase
     private val dbUrl = "https://nexus11-f9c34-default-rtdb.europe-west1.firebasedatabase.app"
 
-    // ✅ CLIENTE SEGURO (CON LA VACUNA PARA IOS)
+    // CLIENTE HTTP CONFIGURADO PARA MULTIPLATAFORMA
     private val client = HttpClient {
-        // 💉 ESTO ES OBLIGATORIO: Evita el error "Content-Length mismatch" en iPhone
+        // SOLUCIÓN IOS: El header "Accept-Encoding: identity" es obligatorio para evitar
+        // errores de "Content-Length mismatch" que ocurren específicamente en el motor Darwin (iOS).
         defaultRequest {
             header(HttpHeaders.AcceptEncoding, "identity")
         }
@@ -51,13 +52,12 @@ class ChatRepository {
         }
     }
 
-    // 1. Obtener mensajes de un chat específico
+    // Obtención de mensajes con ordenación cronológica en cliente.
     suspend fun getMessages(chatId: String): List<Message> {
         return try {
             val response = client.get("$dbUrl/messages/$chatId.json")
             if (response.status == HttpStatusCode.OK) {
                 val map = response.body<Map<String, Message>?>() ?: emptyMap()
-                // Ordenamos por fecha (el más antiguo primero para leer de arriba a abajo)
                 map.values.sortedBy { it.timestamp }.toList()
             } else {
                 emptyList()
@@ -68,25 +68,23 @@ class ChatRepository {
         }
     }
 
-    // 2. Enviar un mensaje nuevo
+    // Envío de mensaje en dos pasos: Generación de ID y actualización del payload.
     suspend fun sendMessage(chatId: String, senderId: String, text: String) {
         val timestamp = io.ktor.util.date.getTimeMillis()
 
-        // A) Guardar el mensaje en la lista de mensajes
+        // 1. Obtener ID único desde Firebase (push key)
         val msgRef = client.post("$dbUrl/messages/$chatId.json") {
             contentType(ContentType.Application.Json)
-            setBody(mapOf("temp" to "temp")) // Truco para generar ID
+            setBody(mapOf("temp" to "temp"))
         }
         val msgId = msgRef.body<Map<String, String>>()["name"] ?: return
 
+        // 2. Guardar el mensaje con su ID real
         val newMessage = Message(msgId, senderId, text, timestamp)
 
         client.put("$dbUrl/messages/$chatId/$msgId.json") {
             contentType(ContentType.Application.Json)
             setBody(newMessage)
         }
-
-        // B) (Opcional) Actualizar la "última conversación" para que salga en la lista de chats
-        // Esto requeriría una estructura de datos 'chats' separada en Firebase
     }
 }

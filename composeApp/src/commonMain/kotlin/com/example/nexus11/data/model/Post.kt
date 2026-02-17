@@ -11,13 +11,7 @@ data class Post(
     val imageUrl: String? = null,
     val description: String = "",
     val timestamp: Long = 0L,
-
-    // Mantenemos esto por si tienes posts antiguos y que no pete la app
     val likes: Int = 0,
-
-    // ✅ NUEVO: Control estricto de 1 Like por persona
     val likedBy: Map<String, Boolean> = emptyMap(),
-
-    // ✅ NUEVO: Mapa de comentarios para poder leerlos
     val comments: Map<String, String> = emptyMap()
 )

@@ -40,6 +40,10 @@ import com.example.nexus11.data.model.User
 import com.example.nexus11.ui.screens.auth.LoginScreen
 import kotlinx.coroutines.launch
 
+/**
+ * Pantalla de Configuración.
+ * Gestiona preferencias de privacidad, notificaciones y cierre de sesión seguro.
+ */
 data class SettingsScreen(val initialUser: User) : Screen {
 
     @Composable
@@ -49,7 +53,6 @@ data class SettingsScreen(val initialUser: User) : Screen {
         val authRepo = remember { AuthRepository() }
         val scope = rememberCoroutineScope()
 
-        // Leemos el color directamente de AppCache (reactivo)
         val themeColor = AppCache.themeColor
 
         var allowNotif by remember { mutableStateOf(initialUser.allowNotifications) }
@@ -60,16 +63,14 @@ data class SettingsScreen(val initialUser: User) : Screen {
         val bgColor = MaterialTheme.colorScheme.background
         val textColor = MaterialTheme.colorScheme.onBackground
 
+        // Función para autoguardado reactivo
         fun saveSettings() {
             scope.launch {
                 val colorInt = AppCache.themeColor.toArgb()
                 val colorLong = colorInt.toLong()
 
-                // 🔥 GUARDADO BLINDADO V5 🔥
-                // Convertimos a UInt para evitar negativos y aseguramos 8 caracteres (ej: FF2196F3)
+                // Persistencia segura del color (V5 Hex String)
                 val hexString = colorInt.toUInt().toString(16).uppercase().padStart(8, '0')
-
-                // Guardamos en local inmediatamente
                 AppCache.settings.putString("local_theme_color_v5", hexString)
 
                 repo.updateUserSettings(
@@ -80,6 +81,7 @@ data class SettingsScreen(val initialUser: User) : Screen {
                     themeColorHex = colorLong
                 )
 
+                // Actualización optimista de caché
                 val latestUser = AppCache.users[initialUser.id] ?: initialUser
                 AppCache.users[initialUser.id] = latestUser.copy(
                     allowNotifications = allowNotif,
@@ -93,13 +95,11 @@ data class SettingsScreen(val initialUser: User) : Screen {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = bgColor,
-            // 1. Quitamos los insets automáticos del sistema
             contentWindowInsets = WindowInsets(0.dp),
             topBar = {
                 Column(
                     modifier = Modifier
                         .background(bgColor)
-                        // 2. ✅ AÑADIMOS ESTO: Baja el contenido lo justo para respetar la barra de estado
                         .statusBarsPadding()
                 ) {
                     Row(
@@ -150,9 +150,12 @@ data class SettingsScreen(val initialUser: User) : Screen {
                 SettingsClickableItem("Ayuda", "Centro de soporte Nexus 11", Icons.AutoMirrored.Filled.Help, textColor, themeColor) { }
 
                 Spacer(Modifier.height(32.dp))
+
+                // BOTÓN DE CIERRE DE SESIÓN SEGURO
                 Button(
                     onClick = {
                         scope.launch {
+                            // Protocolo Anti-Crash: Primero limpiamos credenciales, luego memoria, luego navegamos.
                             authRepo.logout()
                             AppCache.users.clear()
                             AppCache.chatList = emptyList()

@@ -1,19 +1,14 @@
 [versions]
-agp = "8.2.2" # Versión estable de Android Gradle Plugin
+agp = "8.2.2"
 android-compileSdk = "34"
 android-minSdk = "24"
 android-targetSdk = "34"
 androidx-activityCompose = "1.9.0"
 androidx-appcompat = "1.7.0"
 androidx-core-ktx = "1.13.1"
-
-# ⚠️ EL CAMBIO IMPORTANTE: Kotlin 2.0.20 para que no falle iOS ⚠️
 kotlin = "2.0.20"
-compose-plugin = "1.6.11" # Compatible con Kotlin 2.0.20
-
-# Ktor 2.3.12 es la pareja perfecta de Kotlin 2.0.20
+compose-plugin = "1.6.11"
 ktor = "2.3.12"
-
 voyager = "1.1.0-beta02"
 kamel = "0.9.5"
 settings = "1.1.1"
@@ -37,7 +32,7 @@ voyager-navigator = { module = "cafe.adriel.voyager:voyager-navigator", version.
 voyager-transitions = { module = "cafe.adriel.voyager:voyager-transitions", version.ref = "voyager" }
 voyager-tab-navigator = { module = "cafe.adriel.voyager:voyager-tab-navigator", version.ref = "voyager" }
 
-# --- Red (Nombres estándar para que funcione libs.ktor.client.core) ---
+# --- Red ---
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }

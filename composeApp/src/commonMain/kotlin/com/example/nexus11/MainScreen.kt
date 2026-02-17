@@ -1,4 +1,4 @@
-package com.example.nexus11
+package com.example.nexus11.ui.screens
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
@@ -12,7 +12,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
@@ -28,6 +27,11 @@ import com.example.nexus11.ui.screens.post.CreatePostScreen
 import com.example.nexus11.ui.screens.profile.ProfileScreen
 import kotlinx.coroutines.delay
 
+/**
+ * Contenedor Principal de la Aplicación.
+ * Gestiona la navegación de nivel superior mediante pestañas (Tabs).
+ * Mantiene el ciclo de vida de la sesión activa (Heartbeat).
+ */
 class MainScreen : Screen {
     @Composable
     override fun Content() {
@@ -35,22 +39,24 @@ class MainScreen : Screen {
         val repo = remember { DataRepository() }
         val myId = authRepo.getCurrentUserId()
 
-        // 🎨 COLOR: Leemos de AppCache (que ya tiene el Naranja guardado)
+        // 🎨 TEMA REACTIVO: La barra de navegación escucha los cambios de color
+        // en tiempo real desde la configuración global (AppCache).
         val themeColor = AppCache.themeColor
 
+        // Inicialización de sesión y sistema de presencia
         LaunchedEffect(myId) {
             if (myId != null) {
-                // 1. Cargamos usuario solo para actualizar datos (nombre, foto...)
+                // 1. Precarga de datos del usuario actual para la UI
                 try {
                     val me = repo.getUser(myId)
                     if (me != null) {
                         AppCache.users[myId] = me
-                        // 🔴 ELIMINADO: No sobrescribimos el color aquí.
-                        // Dejamos que AppCache mande con lo que tiene en disco.
+                        // NOTA TÉCNICA: No sobrescribimos themeColor desde la DB aquí
+                        // para respetar la preferencia local guardada en disco, evitando parpadeos.
                     }
                 } catch (e: Exception) { }
 
-                // 2. Heartbeat
+                // 2. Heartbeat: Mantiene el estado "Online" activo
                 while (true) {
                     repo.sendHeartbeat(myId)
                     delay(60_000)
@@ -61,10 +67,9 @@ class MainScreen : Screen {
         TabNavigator(HomeTab) {
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.background,
-                // Barra inferior
                 bottomBar = {
                     NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.background, // Se adapta al tema
+                        containerColor = MaterialTheme.colorScheme.background,
                         contentColor = themeColor,
                         tonalElevation = 8.dp
                     ) {
@@ -83,6 +88,7 @@ class MainScreen : Screen {
     }
 }
 
+// Helper para items de navegación con estilo personalizado
 @Composable
 private fun RowScope.TabNavigationItem(tab: Tab) {
     val tabNavigator = LocalTabNavigator.current
@@ -118,54 +124,48 @@ private fun RowScope.TabNavigationItem(tab: Tab) {
     )
 }
 
-// --- TABS ---
+// --- DEFINICIÓN DE PESTAÑAS (TABS) ---
 
 object HomeTab : Tab {
-    override val options: TabOptions
-        @Composable get() {
-            val icon = rememberVectorPainter(Icons.Default.Home)
-            return remember { TabOptions(index = 0u, title = "Inicio", icon = icon) }
-        }
-    @Composable
-    override fun Content() { Navigator(HomeScreen()) { SlideTransition(it) } }
+    override val options: TabOptions @Composable get() {
+        val icon = rememberVectorPainter(Icons.Default.Home)
+        return remember { TabOptions(index = 0u, title = "Inicio", icon = icon) }
+    }
+    @Composable override fun Content() {
+        // Navigator anidado para permitir navegación dentro de la pestaña
+        Navigator(HomeScreen()) { SlideTransition(it) }
+    }
 }
 
 object ChatTab : Tab {
-    override val options: TabOptions
-        @Composable get() {
-            val icon = rememberVectorPainter(Icons.Default.Chat)
-            return remember { TabOptions(index = 1u, title = "Chats", icon = icon) }
-        }
-    @Composable
-    override fun Content() { Navigator(ChatListScreen()) { SlideTransition(it) } }
+    override val options: TabOptions @Composable get() {
+        val icon = rememberVectorPainter(Icons.Default.Chat)
+        return remember { TabOptions(index = 1u, title = "Chats", icon = icon) }
+    }
+    @Composable override fun Content() {
+        Navigator(ChatListScreen()) { SlideTransition(it) }
+    }
 }
 
 object AddPostTab : Tab {
-    override val options: TabOptions
-        @Composable get() {
-            val icon = rememberVectorPainter(Icons.Default.AddBox)
-            return remember { TabOptions(index = 2u, title = "Crear", icon = icon) }
-        }
-    @Composable
-    override fun Content() { Navigator(CreatePostScreen()) { SlideTransition(it) } }
+    override val options: TabOptions @Composable get() {
+        val icon = rememberVectorPainter(Icons.Default.AddBox)
+        return remember { TabOptions(index = 2u, title = "Crear", icon = icon) }
+    }
+    @Composable override fun Content() {
+        Navigator(CreatePostScreen()) { SlideTransition(it) }
+    }
 }
 
 object ProfileTab : Tab {
-    override val options: TabOptions
-        @Composable get() {
-            val icon = rememberVectorPainter(Icons.Default.Person)
-            return remember { TabOptions(index = 3u, title = "Perfil", icon = icon) }
-        }
-
-    @Composable
-    override fun Content() {
+    override val options: TabOptions @Composable get() {
+        val icon = rememberVectorPainter(Icons.Default.Person)
+        return remember { TabOptions(index = 3u, title = "Perfil", icon = icon) }
+    }
+    @Composable override fun Content() {
         val authRepo = remember { AuthRepository() }
         val myId = authRepo.getCurrentUserId() ?: ""
-        
-        // ✅ CORRECCIÓN: Usamos Navigator para que funcionen Ajustes y Buscar
-        // Y NO pasamos isExternal=true porque estamos dentro del menú principal
-        Navigator(ProfileScreen(userId = myId, isExternal = false)) { 
-            SlideTransition(it) 
-        }
+        // Navegación anidada para que pantallas como Settings se abran correctamente
+        Navigator(ProfileScreen(userId = myId, isExternal = false)) { SlideTransition(it) }
     }
 }

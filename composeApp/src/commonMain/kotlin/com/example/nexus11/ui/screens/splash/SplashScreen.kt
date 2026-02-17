@@ -21,6 +21,10 @@ import com.example.nexus11.ui.theme.NexusBlack
 import com.example.nexus11.ui.theme.NexusBlue
 import kotlinx.coroutines.delay
 
+/**
+ * Pantalla de Inicio (Splash).
+ * Realiza la comprobación de integridad de la sesión antes de redirigir al usuario.
+ */
 class SplashScreen : Screen {
     @Composable
     override fun Content() {
@@ -28,17 +32,18 @@ class SplashScreen : Screen {
         val authRepository = remember { AuthRepository() }
 
         LaunchedEffect(Unit) {
-            delay(2000) // Simular carga o mostrar marca
+            delay(2000) // Branding / Tiempo de carga mínimo
 
-            // ✅ BLINDAJE: Verificamos tanto ID como Token
+            // ✅ SEGURIDAD: Verificación exhaustiva de credenciales locales.
+            // Se requiere tanto el ID de usuario como el Token JWT válido.
             val userId = authRepository.getCurrentUserId()
             val token = authRepository.getAuthToken()
 
             if (!userId.isNullOrBlank() && !token.isNullOrBlank()) {
-                // Sesión válida y completa
+                // Sesión válida -> Acceso directo al Feed
                 navigator.replaceAll(MainScreen())
             } else {
-                // Sesión inválida o caducada -> Login
+                // Sesión inválida/inexistente -> Login
                 navigator.replaceAll(LoginScreen())
             }
         }

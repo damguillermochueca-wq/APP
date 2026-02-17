@@ -23,6 +23,10 @@ import com.example.nexus11.ui.screens.home.rememberBase64Image
 import io.kamel.image.KamelImage
 import io.kamel.image.asyncPainterResource
 
+/**
+ * Visor de Imágenes a Pantalla Completa.
+ * Utiliza el mismo mecanismo de caché que el feed para carga instantánea.
+ */
 data class ImageViewerScreen(val imageUrl: String) : Screen {
     @Composable
     override fun Content() {
@@ -32,18 +36,20 @@ data class ImageViewerScreen(val imageUrl: String) : Screen {
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
-                .clickable { navigator.pop() }, // Tocar en cualquier lado para cerrar
+                .clickable { navigator.pop() }, // UX: Cerrar al tocar el fondo
             contentAlignment = Alignment.Center
         ) {
+            // Intentamos recuperar de RAM primero (Base64)
             val bitmap = rememberBase64Image(imageUrl)
 
             if (bitmap != null) {
                 Image(bitmap, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
             } else {
+                // Si es URL remota, usamos carga asíncrona
                 KamelImage(asyncPainterResource(imageUrl), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
             }
 
-            // Botón X por si acaso
+            // Botón de cierre explícito
             IconButton(
                 onClick = { navigator.pop() },
                 modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)

@@ -1,7 +1,5 @@
 package com.example.nexus11.data
 
-// Ya no necesitamos importar el reloj aquí, ¡menos líos!
-
 data class User(
     val id: String,
     val username: String,
@@ -17,9 +15,6 @@ data class Post(
     val userAvatarUrl: String? = null,
     val imageUrl: String?,
     val content: String,
-
-    // 👇 CAMBIO CLAVE: Ponemos 0L por defecto.
-    // La hora real la calculamos en el DataRepository al crear el post.
     val timestamp: Long = 0L,
 
     val likes: Int = 0

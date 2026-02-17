@@ -9,7 +9,6 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 @Preview
 fun App() {
-    // ✅ Usamos tu Theme aquí para que controle los colores de toda la app
     NexusTheme {
         Navigator(SplashScreen())
     }

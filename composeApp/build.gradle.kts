@@ -105,8 +105,7 @@ kotlin {
             implementation(libs.peekaboo.ui)
             implementation(libs.peekaboo.picker)
 
-            // 🛡️ 3. Criptografía (SHA-256 para contraseñas)
-            // Usamos la cadena directa por si no la tienes en el catálogo TOML
+            // Criptografía (SHA-256 para contraseñas)
             implementation("org.kotlincrypto.hash:sha2:0.6.1")
         }
 

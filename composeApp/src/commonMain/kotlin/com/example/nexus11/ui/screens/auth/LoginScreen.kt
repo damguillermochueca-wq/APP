@@ -33,6 +33,10 @@ import com.example.nexus11.ui.screens.MainScreen
 import com.example.nexus11.ui.theme.*
 import kotlinx.coroutines.launch
 
+/**
+ * Pantalla de Autenticación Unificada (Login y Registro).
+ * Gestiona el estado de UI localmente y delega la lógica de negocio al AuthRepository.
+ */
 class LoginScreen : Screen {
 
     @Composable
@@ -41,6 +45,7 @@ class LoginScreen : Screen {
         val scope = rememberCoroutineScope()
         val authRepository = remember { AuthRepository() }
 
+        // Estados de UI
         var isRegister by remember { mutableStateOf(false) }
         var email by remember { mutableStateOf("") }
         var password by remember { mutableStateOf("") }
@@ -78,6 +83,7 @@ class LoginScreen : Screen {
                         modifier = Modifier.padding(top = 8.dp, bottom = 32.dp)
                     )
 
+                    // Bloque de error visual
                     errorMessage?.let { msg ->
                         Box(
                             modifier = Modifier.fillMaxWidth().background(ErrorRed.copy(alpha = 0.1f), RoundedCornerShape(8.dp)).padding(12.dp)
@@ -87,6 +93,7 @@ class LoginScreen : Screen {
                         Spacer(modifier = Modifier.height(16.dp))
                     }
 
+                    // Animación para mostrar campo extra en registro
                     AnimatedVisibility(visible = isRegister) {
                         Column {
                             NexusTextField(
@@ -133,17 +140,18 @@ class LoginScreen : Screen {
                                     errorMessage = null
                                     isLoading = true
 
+                                    // Llamada asíncrona al repositorio
                                     val userId = if (isRegister) {
                                         authRepository.signUp(email, password, username)
                                     } else {
                                         authRepository.login(email, password)
                                     }
 
-                                    // ✅ CAMBIO CLAVE: El AuthRepository ya guardó el token y el ID internamente.
-                                    // Solo verificamos si nos devolvió un ID válido.
+                                    // LÓGICA DE CONTROL: Verificamos solo si obtuvimos ID válido.
+                                    // El repositorio ya se encargó de guardar los tokens internamente.
                                     if (userId != null) {
                                         isLoading = false
-                                        navigator.replaceAll(MainScreen())
+                                        navigator.replaceAll(MainScreen()) // Navegación sin vuelta atrás
                                     } else {
                                         throw Exception("Credenciales incorrectas o error de conexión")
                                     }
@@ -188,7 +196,7 @@ class LoginScreen : Screen {
     }
 }
 
-// Componente TextField reutilizable
+// Helper Composable para inputs estandarizados
 @Composable
 fun NexusTextField(
     value: String,

@@ -48,6 +48,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Pantalla Principal (Feed).
+ * Implementa un sistema de pestañas para filtrar contenido y gestión de "Pull to Refresh".
+ * Utiliza AppCache para renderizado instantáneo y DataRepository para actualización en segundo plano.
+ */
 class HomeScreen : Screen {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
@@ -58,19 +63,18 @@ class HomeScreen : Screen {
         val myId = authRepo.getCurrentUserId() ?: ""
         val scope = rememberCoroutineScope()
 
-        // 🎨 LEEMOS EL COLOR DEL TEMA (Reactivo)
+        // 🎨 TEMA REACTIVO: Escucha cambios en el Singleton para repintar la UI al instante.
         val themeColor = AppCache.themeColor
 
-        // DATOS
+        // Fuente de datos: Caché en RAM para evitar latencia de red.
         var allPosts by remember { mutableStateOf(AppCache.posts) }
         var followingIds by remember { mutableStateOf(AppCache.myFollowingIds.toSet()) }
 
-        // ESTADOS DE UI
         var selectedTabIndex by remember { mutableStateOf(0) }
         val tabs = listOf("Descubrir", "Siguiendo", "Para ti")
         var initialLoading by remember { mutableStateOf(AppCache.posts.isEmpty()) }
 
-        // ESTADO PULL TO REFRESH
+        // Gestión del gesto de refresco (Pull-to-Refresh nativo de Material3)
         var isRefreshing by remember { mutableStateOf(false) }
         val pullState = rememberPullToRefreshState()
 
@@ -78,9 +82,10 @@ class HomeScreen : Screen {
             scope.launch {
                 isRefreshing = true
                 try {
-                    delay(500)
+                    delay(500) // Debounce visual para evitar parpadeos
                     val newPosts = repo.getAllPosts()
                     if (newPosts.isNotEmpty()) {
+                        // Sincronización: Actualizamos RAM (AppCache) y UI local
                         AppCache.posts.clear()
                         AppCache.posts.addAll(newPosts)
                         allPosts.clear()
@@ -93,6 +98,7 @@ class HomeScreen : Screen {
                         followingIds = remoteFollowing
                     }
                 } catch (e: Exception) {
+                    // Manejo silencioso de errores de red en el feed
                 } finally {
                     isRefreshing = false
                 }
@@ -107,12 +113,14 @@ class HomeScreen : Screen {
             if (initialLoading) { loadData(); initialLoading = false }
         }
 
+        // Lógica de filtrado en cliente (más rápido que pedir filtros al servidor)
         val displayedPosts = remember(allPosts, selectedTabIndex, followingIds) {
             val myUser = AppCache.users[myId]
             when (selectedTabIndex) {
-                0 -> allPosts
-                1 -> allPosts.filter { followingIds.contains(it.userId) }
+                0 -> allPosts // Todo
+                1 -> allPosts.filter { followingIds.contains(it.userId) } // Solo seguidos
                 2 -> if (myUser == null) emptyList() else allPosts.filter { post ->
+                    // Algoritmo "Para ti": Coincidencia de intereses (Profesión/Hobby)
                     val author = AppCache.users[post.userId]
                     if (author != null && author.id != myId) {
                         (author.profession.isNotEmpty() && author.profession == myUser.profession) ||
@@ -126,11 +134,11 @@ class HomeScreen : Screen {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = MaterialTheme.colorScheme.background,
-            contentWindowInsets = WindowInsets(0.dp)
+            contentWindowInsets = WindowInsets(0.dp) // Control manual de insets
         ) { padding ->
             Column(modifier = Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding()).background(MaterialTheme.colorScheme.background)) {
 
-                // CABECERA
+                // CABECERA PERSONALIZADA (44dp estándar)
                 Column(Modifier.background(MaterialTheme.colorScheme.background)) {
                     Box(modifier = Modifier.fillMaxWidth().height(44.dp), contentAlignment = Alignment.CenterStart) {
                         Text("NEXUS 11", color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Black, fontSize = 22.sp, modifier = Modifier.padding(horizontal = 16.dp))
@@ -139,10 +147,10 @@ class HomeScreen : Screen {
                     TabRow(
                         selectedTabIndex = selectedTabIndex,
                         containerColor = Color.Transparent,
-                        contentColor = themeColor, // 🎨 Color de las pestañas
+                        contentColor = themeColor,
                         indicator = { tabPositions ->
                             if (selectedTabIndex < tabPositions.size)
-                                TabRowDefaults.SecondaryIndicator(Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]), color = themeColor) // 🎨 Línea debajo
+                                TabRowDefaults.SecondaryIndicator(Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]), color = themeColor)
                         },
                         divider = { HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)) }
                     ) {
@@ -155,7 +163,7 @@ class HomeScreen : Screen {
                                         title,
                                         fontWeight = if(selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal,
                                         fontSize = 14.sp,
-                                        color = if(selectedTabIndex == index) themeColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f) // 🎨 Texto coloreado
+                                        color = if(selectedTabIndex == index) themeColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                     )
                                 }
                             )
@@ -179,7 +187,7 @@ class HomeScreen : Screen {
                                         repo = repo,
                                         contentColor = MaterialTheme.colorScheme.onBackground,
                                         cardBgColor = MaterialTheme.colorScheme.surfaceVariant,
-                                        themeColor = themeColor, // 🎨 Pasamos el color
+                                        themeColor = themeColor,
                                         onUserClick = { navigator.push(ProfileScreen(it)) }
                                     )
                                 }
@@ -192,7 +200,7 @@ class HomeScreen : Screen {
                             state = pullState,
                             modifier = Modifier.align(Alignment.TopCenter),
                             containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = themeColor // 🎨 Rueda de carga con color
+                            contentColor = themeColor
                         )
                     }
                 }
@@ -202,19 +210,22 @@ class HomeScreen : Screen {
 }
 
 // -----------------------------------------------------------
-// HELPERS (PostCard y Carga de Imágenes)
+// HELPERS (Optimización de Carga de Imágenes y Componentes UI)
 // -----------------------------------------------------------
 
 @Composable
 fun rememberBase64Image(base64String: String?): ImageBitmap? {
     if (base64String.isNullOrBlank() || !base64String.startsWith("data:image")) return null
+
+    // CACHÉ L1: Si ya está en memoria, devolvemos inmediatamente.
     if (AppCache.bitmapCache.containsKey(base64String)) return AppCache.bitmapCache[base64String]
+
     var bitmap by remember(base64String) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(base64String) {
-        withContext(Dispatchers.Default) {
+        withContext(Dispatchers.Default) { // Decodificación en hilo secundario (Worker Thread)
             try {
                 val decoded = base64String.substringAfter(",").decodeBase64Bytes().toImageBitmap()
-                AppCache.bitmapCache[base64String] = decoded
+                AppCache.bitmapCache[base64String] = decoded // Guardamos en caché para la próxima vez
                 withContext(Dispatchers.Main) { bitmap = decoded }
             } catch (e: Exception) { }
         }
@@ -224,6 +235,8 @@ fun rememberBase64Image(base64String: String?): ImageBitmap? {
 
 @Composable
 fun PostCard(post: Post, repo: DataRepository, contentColor: Color, cardBgColor: Color, themeColor: Color, onUserClick: (String) -> Unit) {
+    // ... (Implementación de la tarjeta con lógica de Likes y Comentarios)
+    // Se mantiene idéntica, la lógica de interacción es estándar de Compose.
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val authRepo = remember { AuthRepository() }

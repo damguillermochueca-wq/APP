@@ -51,6 +51,7 @@ class AppearanceScreen : Screen {
             Color(0xFF795548), Color(0xFF000000)
         )
 
+        // Estado local para la previsualización antes de guardar
         var selectedColor by remember { mutableStateOf(AppCache.themeColor) }
         var selectedWallpaper by remember { mutableStateOf(AppCache.wallpaperStyle) }
 
@@ -62,16 +63,17 @@ class AppearanceScreen : Screen {
                 val colorInt = selectedColor.toArgb()
                 val colorLong = colorInt.toLong()
 
-                // Generamos el texto Hexadecimal limpio (Ej: "FFFF9800")
+                // SERIALIZACIÓN SEGURA (Hex String):
+                // Evita problemas de signo en Integers entre plataformas.
                 val hexString = (colorLong and 0xFFFFFFFFL).toString(16).uppercase()
 
-                // Actualizamos AppCache (RAM y Disco)
+                // 1. Actualización inmediata en RAM y Disco
                 AppCache.themeColor = selectedColor
                 AppCache.wallpaperStyle = selectedWallpaper
                 AppCache.settings.putString("local_theme_color_v5", hexString)
                 AppCache.settings.putInt("local_wallpaper_id_v5", selectedWallpaper)
 
-                // Guardamos en Firebase
+                // 2. Sincronización con Nube
                 repo.updateUserAppearance(myId, colorLong, selectedWallpaper)
 
                 navigator.pop()
@@ -138,6 +140,8 @@ class AppearanceScreen : Screen {
                     WallpaperOption("Galaxia", 2, selectedWallpaper, selectedColor) { selectedWallpaper = 2 }
                 }
                 Spacer(Modifier.height(40.dp))
+
+                // Componentes "Fake" para previsualizar el cambio de tema sin salir
                 SectionTitle("VISTA PREVIA: CHAT", selectedColor)
                 FakeChatPreview(selectedColor, selectedWallpaper)
                 Spacer(Modifier.height(32.dp))
@@ -148,7 +152,8 @@ class AppearanceScreen : Screen {
         }
     }
 
-    // --- WIDGETS ---
+    // --- COMPONENTES DE PREVISUALIZACIÓN ---
+    // (Simulan la UI real pero son estáticos para mostrar los colores)
     @Composable
     fun FakeChatPreview(themeColor: Color, wallpaperId: Int) {
         val wallpaperBrush = when (wallpaperId) {

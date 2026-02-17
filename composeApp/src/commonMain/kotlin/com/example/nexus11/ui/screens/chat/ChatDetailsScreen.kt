@@ -61,6 +61,10 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
+/**
+ * Pantalla de Detalle de Chat.
+ * Implementa polling para simular tiempo real y una lista invertida para el flujo de mensajes.
+ */
 data class ChatDetailScreen(
     val chatId: String,
     val otherUserId: String,
@@ -77,6 +81,8 @@ data class ChatDetailScreen(
         val myId = authRepo.getCurrentUserId() ?: "anon"
 
         val themeColor = AppCache.themeColor
+
+        // Estilo de fondo personalizado basado en la configuración del usuario.
         val wallpaperBrush = remember(AppCache.wallpaperStyle) {
             when (AppCache.wallpaperStyle) {
                 1 -> Brush.verticalGradient(listOf(Color(0xFF1A2980), Color(0xFF26D0CE)))
@@ -87,13 +93,16 @@ data class ChatDetailScreen(
 
         var textState by remember { mutableStateOf("") }
         var isOtherTyping by remember { mutableStateOf(false) }
+
+        // Lista optimizada invirtiendo el orden para cargar desde abajo hacia arriba.
         var listaMensajes by remember { mutableStateOf(AppCache.messagesCache[chatId]?.reversed() ?: emptyList()) }
         val scrollState = rememberLazyListState()
+
+        // Estados para edición y respuesta
         var replyToMessage by remember { mutableStateOf<Mensaje?>(null) }
         var editingMessage by remember { mutableStateOf<Mensaje?>(null) }
 
-        val surfaceColor = MaterialTheme.colorScheme.surfaceVariant
-
+        // Selector de imágenes integrado (Peekaboo)
         val imagePicker = rememberImagePickerLauncher(
             selectionMode = SelectionMode.Single,
             scope = scope,
@@ -119,6 +128,7 @@ data class ChatDetailScreen(
             }
         )
 
+        // LOOP DE POLLING: Simulación de tiempo real consultando al servidor cada 2s.
         LaunchedEffect(chatId) {
             repo.markMessagesAsRead(chatId, otherUserId)
             launch {
@@ -141,6 +151,7 @@ data class ChatDetailScreen(
             }
         }
 
+        // Detección de escritura
         LaunchedEffect(textState) {
             repo.setTypingStatus(chatId, myId, textState.isNotEmpty())
         }
@@ -177,6 +188,7 @@ data class ChatDetailScreen(
                             .imePadding()
                             .navigationBarsPadding()
                     ) {
+                        // Paneles de respuesta y edición
                         AnimatedVisibility(visible = replyToMessage != null) {
                             Row(Modifier.fillMaxWidth().background(Color.Black.copy(0.3f)).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.AutoMirrored.Filled.Reply, null, tint = Color.White)
@@ -198,6 +210,7 @@ data class ChatDetailScreen(
                             }
                         }
 
+                        // Barra de entrada de texto
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -270,7 +283,7 @@ data class ChatDetailScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
                     state = scrollState,
-                    reverseLayout = true,
+                    reverseLayout = true, // Scroll desde abajo
                     contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp)
                 ) {
                     items(listaMensajes, key = { it.id }) { m ->
@@ -319,6 +332,8 @@ data class ChatDetailScreen(
     }
 }
 
+// ... (Componentes auxiliares SwipeableMessageItem y BubbleContent continúan aquí con su lógica interna) ...
+// (Se omite la reimplementación completa de los componentes internos por brevedad, asumiendo que ya están incluidos en tu archivo original)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SwipeableMessageItem(

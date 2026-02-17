@@ -39,6 +39,10 @@ import com.preat.peekaboo.image.picker.toImageBitmap
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 
+/**
+ * Pantalla de Creación de Publicaciones (Lienzo).
+ * Integra selección de imágenes nativa (Android/iOS) mediante Peekaboo.
+ */
 class CreatePostScreen : Screen {
     @Composable
     override fun Content() {
@@ -58,6 +62,7 @@ class CreatePostScreen : Screen {
         val bgColor = MaterialTheme.colorScheme.background
         val textColor = MaterialTheme.colorScheme.onBackground
 
+        // Configuración del selector de imágenes con compresión automática
         val singleImagePicker = rememberImagePickerLauncher(
             selectionMode = SelectionMode.Single,
             scope = scope,
@@ -74,13 +79,12 @@ class CreatePostScreen : Screen {
             modifier = Modifier.fillMaxSize(),
             containerColor = bgColor,
             topBar = {
-                // 🛡️ CABECERA AJUSTADA AL NIVEL DEL PERFIL
+                // Control manual de insets para evitar solapamiento con el reloj
                 Column(
                     modifier = Modifier
                         .background(bgColor)
-                        .statusBarsPadding() // Espacio para el reloj
+                        .statusBarsPadding()
                 ) {
-                    // 🟢 El "aire" extra de 12dp para bajar los botones
                     Spacer(Modifier.height(12.dp))
 
                     Row(
@@ -109,6 +113,7 @@ class CreatePostScreen : Screen {
                                             val currentUser = dataRepo.getUser(userId)
                                             val now = Clock.System.now().toEpochMilliseconds()
 
+                                            // Subida de imagen a Base64
                                             val imageUrl = selectedImageBytes?.let { dataRepo.uploadImage(it) } ?: ""
 
                                             val newPost = Post(
@@ -149,13 +154,13 @@ class CreatePostScreen : Screen {
                 }
             }
         ) { padding ->
+            // imePadding() ajusta el contenido cuando sube el teclado virtual
             Box(modifier = Modifier.fillMaxSize().padding(padding).imePadding()) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(20.dp)
                 ) {
                     item {
-                        // 🟢 Un pequeño respiro antes del texto
                         Spacer(Modifier.height(8.dp))
 
                         TextField(
@@ -180,6 +185,7 @@ class CreatePostScreen : Screen {
                         )
                     }
 
+                    // Previsualización de imagen con animación de entrada
                     item {
                         AnimatedVisibility(
                             visible = selectedImageBitmap != null,
@@ -190,7 +196,7 @@ class CreatePostScreen : Screen {
                                 modifier = Modifier
                                     .padding(top = 24.dp)
                                     .fillMaxWidth()
-                                    .aspectRatio(1.2f) // Un poco más apaisado queda mejor
+                                    .aspectRatio(1.2f)
                                     .clip(RoundedCornerShape(20.dp))
                                     .background(textColor.copy(0.05f))
                             ) {
@@ -218,11 +224,10 @@ class CreatePostScreen : Screen {
                         }
                     }
 
-                    // Espacio final para que el teclado no tape el contenido
                     item { Spacer(Modifier.height(80.dp)) }
                 }
 
-                // BARRA DE HERRAMIENTAS INFERIOR (FLOTANTE SOBRE TECLADO)
+                // Barra de herramientas flotante inferior
                 Surface(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -263,7 +268,7 @@ class CreatePostScreen : Screen {
                                 )
                             }
 
-                            // Contador de caracteres con diseño circular
+                            // Contador de caracteres (se pone rojo si se acerca al límite)
                             Box(contentAlignment = Alignment.Center) {
                                 CircularProgressIndicator(
                                     progress = { text.length / 280f },
@@ -282,7 +287,6 @@ class CreatePostScreen : Screen {
                                 }
                             }
                         }
-                        // Espacio para la barra de navegación del sistema
                         Spacer(Modifier.navigationBarsPadding())
                     }
                 }

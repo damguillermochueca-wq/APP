@@ -8,17 +8,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import com.example.nexus11.data.AppCache
 
+/**
+ * Motor de Temas Dinámico.
+ * Envuelve toda la aplicación y regenera la paleta de colores Material3
+ * cada vez que cambia el estado reactivo `AppCache.themeColor`.
+ */
 @Composable
 fun NexusTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    // 🎨 LEEMOS EL COLOR DINÁMICO
-    // Al ser una variable de estado en AppCache,
-    // cuando cambie, toda la UI se repintará automáticamente.
+    // 🎨 PUNTO DE ENTRADA REACTIVO:
+    // Al leer directamente del StateObject global, cualquier cambio en Settings
+    // provoca una recomposición en cascada de toda la UI con el nuevo color.
     val primaryColor = AppCache.themeColor
 
-    // 1. ESQUEMA OSCURO (Nexus Style)
+    // 1. ESQUEMA OSCURO (Estilo principal OLED)
     val DarkColorScheme = darkColorScheme(
         primary = primaryColor,
         onPrimary = TextWhite,
@@ -36,7 +41,7 @@ fun NexusTheme(
         outline = TextGray
     )
 
-    // 2. ESQUEMA CLARO (Fallback)
+    // 2. ESQUEMA CLARO (Fallback de seguridad)
     val LightColorScheme = lightColorScheme(
         primary = primaryColor,
         onPrimary = TextWhite,
