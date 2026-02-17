@@ -37,6 +37,7 @@ import kotlinx.datetime.Clock
 
 /**
  * Pantalla que muestra la lista de conversaciones activas.
+ * Implementa un sistema de polling para actualizar estados (leído/no leído) en tiempo real.
  */
 class ChatListScreen : Screen {
     @Composable
@@ -44,7 +45,7 @@ class ChatListScreen : Screen {
         val navigator = LocalNavigator.currentOrThrow
 
         // RootNavigator: Necesario para navegar fuera de las pestañas principales (Tabs)
-        // y mostrar el chat en pantalla completa.
+        // y mostrar el chat en pantalla completa sin la barra inferior.
         val rootNavigator = remember(navigator) {
             var nav = navigator
             while (nav.parent != null) {
@@ -62,7 +63,7 @@ class ChatListScreen : Screen {
         val bgColor = MaterialTheme.colorScheme.background
         val textColor = MaterialTheme.colorScheme.onBackground
 
-        // Loop de actualización automática de la lista de chats
+        // Loop de actualización automática (Polling)
         LaunchedEffect(Unit) {
             val user = authRepo.getCurrentUserId()
             if (user != null) myId = user
@@ -71,13 +72,18 @@ class ChatListScreen : Screen {
                 try {
                     if (myId.isNotEmpty()) {
                         val newChats = repo.getMyChats(myId)
-                        // Actualización eficiente: Solo refresca si hay cambios reales
-                        if (newChats.size != chats.size || newChats.firstOrNull()?.second?.timestamp != chats.firstOrNull()?.second?.timestamp) {
+
+                        // CORRECCIÓN TÉCNICA:
+                        // Comparamos la lista completa (data class equality).
+                        // Si cambia 'isRead' en algún mensaje, las listas serán diferentes
+                        // y forzaremos la recomposición de la UI para mostrar el doble tick azul.
+                        if (newChats != chats) {
                             chats = newChats
                             AppCache.chatList = newChats
                         }
                     }
                 } catch (e: Exception) {}
+                // Frecuencia de actualización: 3 segundos
                 kotlinx.coroutines.delay(3000)
             }
         }
@@ -138,12 +144,15 @@ class ChatListScreen : Screen {
                                     repo = repo,
                                     textColor = textColor,
                                     onClick = { name ->
-                                        // CORRECCIÓN CRÍTICA DE ESTADO:
-                                        // Actualizamos caché y UI para marcar como leído inmediatamente
-                                        // y evitar el "punto azul" fantasma al volver atrás.
-                                        val updatedChats = chats.map { (id, msg) ->
-                                            if (id == chatId) id to msg.copy(isRead = true) else id to msg
-                                        }
+                                        // Navegación optimista: Marcamos leído localmente solo si es entrante.
+                                        // Si es nuestro mensaje, no tocamos el estado para no falsear el tick azul.
+                                        val isIncoming = lastMsg.senderId != myId
+
+                                        val updatedChats = if (isIncoming && !lastMsg.isRead) {
+                                            chats.map { (id, msg) ->
+                                                if (id == chatId) id to msg.copy(isRead = true) else id to msg
+                                            }
+                                        } else chats
 
                                         chats = updatedChats
                                         AppCache.chatList = updatedChats
@@ -234,6 +243,7 @@ fun ChatRowItem(
             Spacer(Modifier.height(4.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // Si el último mensaje es mío, mostramos el estado (Ticks)
                 if (lastMsg.senderId == myId) {
                     val icon = if (lastMsg.isRead) Icons.Default.DoneAll else Icons.Default.Check
                     val tint = if (lastMsg.isRead) Color(0xFF4FC3F7) else textColor.copy(0.6f)
@@ -259,7 +269,7 @@ fun ChatRowItem(
             }
         }
 
-        // Punto azul de no leído
+        // Punto azul para mensajes nuevos recibidos
         if (!lastMsg.isRead && lastMsg.senderId != myId) {
             Box(Modifier.size(10.dp).background(NexusBlue, CircleShape))
         }

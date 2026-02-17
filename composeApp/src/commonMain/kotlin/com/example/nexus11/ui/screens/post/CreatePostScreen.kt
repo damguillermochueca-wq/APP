@@ -16,22 +16,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
+import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import com.example.nexus11.data.AppCache
 import com.example.nexus11.data.AuthRepository
 import com.example.nexus11.data.DataRepository
 import com.example.nexus11.data.model.Post
+import com.example.nexus11.ui.screens.HomeTab
 import com.preat.peekaboo.image.picker.ResizeOptions
 import com.preat.peekaboo.image.picker.SelectionMode
 import com.preat.peekaboo.image.picker.rememberImagePickerLauncher
@@ -40,15 +39,15 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 
 /**
- * Pantalla de Creación de Publicaciones (Lienzo).
- * Integra selección de imágenes nativa (Android/iOS) mediante Peekaboo.
+ * Pantalla de Creación de Publicaciones.
+ * Gestiona la subida de contenido y la redirección al feed principal.
  */
 class CreatePostScreen : Screen {
     @Composable
     override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
+        // Necesitamos el TabNavigator para poder volver al "Home" tras publicar
+        val tabNavigator = LocalTabNavigator.current
         val scope = rememberCoroutineScope()
-        val focusManager = LocalFocusManager.current
 
         val dataRepo = remember { DataRepository() }
         val authRepo = remember { AuthRepository() }
@@ -62,7 +61,6 @@ class CreatePostScreen : Screen {
         val bgColor = MaterialTheme.colorScheme.background
         val textColor = MaterialTheme.colorScheme.onBackground
 
-        // Configuración del selector de imágenes con compresión automática
         val singleImagePicker = rememberImagePickerLauncher(
             selectionMode = SelectionMode.Single,
             scope = scope,
@@ -79,7 +77,6 @@ class CreatePostScreen : Screen {
             modifier = Modifier.fillMaxSize(),
             containerColor = bgColor,
             topBar = {
-                // Control manual de insets para evitar solapamiento con el reloj
                 Column(
                     modifier = Modifier
                         .background(bgColor)
@@ -100,7 +97,13 @@ class CreatePostScreen : Screen {
                             color = textColor.copy(alpha = 0.6f),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,
-                            modifier = Modifier.clickable { navigator.pop() }
+                            modifier = Modifier.clickable {
+                                // Al cancelar, limpiamos y volvemos al Home
+                                text = ""
+                                selectedImageBytes = null
+                                selectedImageBitmap = null
+                                tabNavigator.current = HomeTab
+                            }
                         )
 
                         Button(
@@ -113,7 +116,6 @@ class CreatePostScreen : Screen {
                                             val currentUser = dataRepo.getUser(userId)
                                             val now = Clock.System.now().toEpochMilliseconds()
 
-                                            // Subida de imagen a Base64
                                             val imageUrl = selectedImageBytes?.let { dataRepo.uploadImage(it) } ?: ""
 
                                             val newPost = Post(
@@ -127,7 +129,17 @@ class CreatePostScreen : Screen {
                                             )
 
                                             dataRepo.createPost(newPost)
-                                            navigator.pop()
+
+                                            // ✅ CORRECCIÓN: Limpiamos estado y cambiamos de Pestaña.
+                                            // navigator.pop() fallaba porque esta pantalla es la raíz de la pestaña.
+                                            text = ""
+                                            selectedImageBytes = null
+                                            selectedImageBitmap = null
+                                            isLoading = false
+
+                                            // Redirigir al Feed
+                                            tabNavigator.current = HomeTab
+
                                         } catch (e: Exception) {
                                             isLoading = false
                                         }
@@ -154,7 +166,6 @@ class CreatePostScreen : Screen {
                 }
             }
         ) { padding ->
-            // imePadding() ajusta el contenido cuando sube el teclado virtual
             Box(modifier = Modifier.fillMaxSize().padding(padding).imePadding()) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -162,7 +173,6 @@ class CreatePostScreen : Screen {
                 ) {
                     item {
                         Spacer(Modifier.height(8.dp))
-
                         TextField(
                             value = text,
                             onValueChange = { if (it.length <= 280) text = it },
@@ -185,7 +195,6 @@ class CreatePostScreen : Screen {
                         )
                     }
 
-                    // Previsualización de imagen con animación de entrada
                     item {
                         AnimatedVisibility(
                             visible = selectedImageBitmap != null,
@@ -208,7 +217,6 @@ class CreatePostScreen : Screen {
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 }
-
                                 Surface(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
@@ -223,24 +231,18 @@ class CreatePostScreen : Screen {
                             }
                         }
                     }
-
                     item { Spacer(Modifier.height(80.dp)) }
                 }
 
-                // Barra de herramientas flotante inferior
                 Surface(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth(),
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
                     color = bgColor,
                     tonalElevation = 4.dp
                 ) {
                     Column {
                         HorizontalDivider(color = textColor.copy(0.05f))
                         Row(
-                            modifier = Modifier
-                                .padding(horizontal = 16.dp, vertical = 10.dp)
-                                .fillMaxWidth(),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp).fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
@@ -248,27 +250,12 @@ class CreatePostScreen : Screen {
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.clickable { singleImagePicker.launch() }
                             ) {
-                                Box(
-                                    Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(themeColor.copy(0.1f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
+                                Box(Modifier.size(40.dp).clip(CircleShape).background(themeColor.copy(0.1f)), contentAlignment = Alignment.Center) {
                                     Icon(Icons.Rounded.AddPhotoAlternate, "Imagen", tint = themeColor, modifier = Modifier.size(20.dp))
                                 }
-
                                 Spacer(Modifier.width(12.dp))
-
-                                Text(
-                                    if (selectedImageBitmap == null) "Añadir foto" else "Cambiar foto",
-                                    color = themeColor,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Text(if (selectedImageBitmap == null) "Añadir foto" else "Cambiar foto", color = themeColor, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
-
-                            // Contador de caracteres (se pone rojo si se acerca al límite)
                             Box(contentAlignment = Alignment.Center) {
                                 CircularProgressIndicator(
                                     progress = { text.length / 280f },
@@ -278,12 +265,7 @@ class CreatePostScreen : Screen {
                                     trackColor = textColor.copy(0.1f)
                                 )
                                 if (text.length > 200) {
-                                    Text(
-                                        (280 - text.length).toString(),
-                                        fontSize = 10.sp,
-                                        color = if (text.length > 250) Color.Red else textColor.copy(0.6f),
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    Text((280 - text.length).toString(), fontSize = 10.sp, color = if (text.length > 250) Color.Red else textColor.copy(0.6f), fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
