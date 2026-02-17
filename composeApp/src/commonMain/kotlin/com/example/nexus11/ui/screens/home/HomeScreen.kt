@@ -67,6 +67,7 @@ class HomeScreen : Screen {
         val themeColor = AppCache.themeColor
 
         // Fuente de datos: Caché en RAM para evitar latencia de red.
+        // allPosts es una referencia directa a la lista observable global.
         var allPosts by remember { mutableStateOf(AppCache.posts) }
         var followingIds by remember { mutableStateOf(AppCache.myFollowingIds.toSet()) }
 
@@ -88,8 +89,8 @@ class HomeScreen : Screen {
                         // Sincronización: Actualizamos RAM (AppCache) y UI local
                         AppCache.posts.clear()
                         AppCache.posts.addAll(newPosts)
-                        allPosts.clear()
-                        allPosts.addAll(newPosts)
+                        // Forzamos actualización de la referencia local si fuera necesario
+                        allPosts = AppCache.posts
                     }
                     if (myId.isNotEmpty()) {
                         val remoteFollowing = repo.getMyFollowing(myId)
@@ -114,7 +115,7 @@ class HomeScreen : Screen {
         }
 
         // Lógica de filtrado en cliente (más rápido que pedir filtros al servidor)
-        val displayedPosts = remember(allPosts, selectedTabIndex, followingIds) {
+        val displayedPosts = remember(allPosts, selectedTabIndex, followingIds, allPosts.toList()) {
             val myUser = AppCache.users[myId]
             when (selectedTabIndex) {
                 0 -> allPosts // Todo
@@ -235,15 +236,16 @@ fun rememberBase64Image(base64String: String?): ImageBitmap? {
 
 @Composable
 fun PostCard(post: Post, repo: DataRepository, contentColor: Color, cardBgColor: Color, themeColor: Color, onUserClick: (String) -> Unit) {
-    // ... (Implementación de la tarjeta con lógica de Likes y Comentarios)
-    // Se mantiene idéntica, la lógica de interacción es estándar de Compose.
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val authRepo = remember { AuthRepository() }
     val myId = authRepo.getCurrentUserId() ?: ""
     val myUsername = AppCache.users[myId]?.username ?: "Yo"
+
+    // Estado local para respuesta inmediata (Optimistic UI)
     var likedByMe by remember { mutableStateOf(post.likedBy.containsKey(myId)) }
     var likesCount by remember { mutableStateOf(post.likes + post.likedBy.size) }
+
     var commentText by remember { mutableStateOf("") }
     var localComments by remember { mutableStateOf(post.comments.values.toList()) }
     var currentAvatarUrl by remember { mutableStateOf(AppCache.users[post.userId]?.profileImageUrl ?: post.userAvatarUrl) }
@@ -292,10 +294,25 @@ fun PostCard(post: Post, repo: DataRepository, contentColor: Color, cardBgColor:
                 IconButton(onClick = {
                     scope.launch {
                         val wasLiked = likedByMe
+                        // 1. UI Optimista: Cambiamos icono y contador al instante
                         likedByMe = !wasLiked
                         likesCount += if(wasLiked) -1 else 1
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+
+                        // 2. Llamada a Red (Segundo plano)
                         repo.toggleLikePost(post.id, myId, wasLiked)
+
+                        // 3. PERSISTENCIA EN CACHÉ:
+                        // Actualizamos el objeto Post en la lista global AppCache.posts.
+                        val index = AppCache.posts.indexOfFirst { it.id == post.id }
+                        if (index != -1) {
+                            val cachedPost = AppCache.posts[index]
+                            val newLikedBy = cachedPost.likedBy.toMutableMap()
+                            if (wasLiked) newLikedBy.remove(myId) else newLikedBy[myId] = true
+
+                            // Reemplazamos el elemento en la lista observable para notificar cambios
+                            AppCache.posts[index] = cachedPost.copy(likedBy = newLikedBy)
+                        }
                     }
                 }) {
                     Icon(if (likedByMe) Icons.Default.Favorite else Icons.Default.FavoriteBorder, null, tint = if (likedByMe) Color.Red else contentColor)
