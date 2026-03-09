@@ -9,9 +9,6 @@ Nexus 11 es una aplicación móvil multiplataforma (iOS y Android) desarrollada 
 
 Diseñada como Proyecto Final de Ciclo (DAM), esta red social demuestra la implementación de arquitecturas modernas, compartiendo la lógica de negocio y una interfaz gráfica (UI) 100% reactiva y unificada desde un único código base.
 
-## 📸 Capturas de Pantalla
-> **Nota para el desarrollador:** [¡Añade aquí 3 o 4 capturas de tu app! Una del Feed, otra del Chat, otra del Perfil y otra mostrando un cambio de color del tema]
-
 ## ✨ Funcionalidades Principales
 
 ### 🔄 Feed Dinámico y Social
