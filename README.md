@@ -1,114 +1,50 @@
-This is a Kotlin Multiplatform project targeting Android, iOS.
+# 📱 Nexus 11 - Red Social Multiplataforma
 
-* [/composeApp](./composeApp/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./composeApp/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./composeApp/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./composeApp/src/jvmMain/kotlin)
-    folder is the appropriate location.
+![Kotlin](https://img.shields.io/badge/kotlin-%237F52FF.svg?style=for-the-badge&logo=kotlin&logoColor=white)
+![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
+![iOS](https://img.shields.io/badge/iOS-000000?style=for-the-badge&logo=ios&logoColor=white)
+![Compose Multiplatform](https://img.shields.io/badge/Compose_Multiplatform-000000?style=for-the-badge&logo=Jetpack+Compose&logoColor=white)
 
-* [/iosApp](./iosApp/iosApp) contains iOS applications. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
+Nexus 11 es una aplicación móvil multiplataforma (iOS y Android) desarrollada con **Kotlin Multiplatform (KMP)** y **Compose Multiplatform**. 
 
-### Build and Run Android Application
+Diseñada como Proyecto Final de Ciclo (DAM), esta red social demuestra la implementación de arquitecturas modernas, compartiendo la lógica de negocio y una interfaz gráfica (UI) 100% reactiva y unificada desde un único código base.
 
-To build and run the development version of the Android app, use the run configuration from the run widget
-in your IDE’s toolbar or build it directly from the terminal:
-- on macOS/Linux
-  ```shell
-  ./gradlew :composeApp:assembleDebug
-  ```
-- on Windows
-  ```shell
-  .\gradlew.bat :composeApp:assembleDebug
-  ```
+## 📸 Capturas de Pantalla
+> **Nota para el desarrollador:** [¡Añade aquí 3 o 4 capturas de tu app! Una del Feed, otra del Chat, otra del Perfil y otra mostrando un cambio de color del tema]
 
-### Build and Run iOS Application
+## ✨ Funcionalidades Principales
 
-To build and run the development version of the iOS app, use the run configuration from the run widget
-in your IDE’s toolbar or open the [/iosApp](./iosApp) directory in Xcode and run it from there.
+### 🔄 Feed Dinámico y Social
+* **Algoritmo de filtrado:** Pestañas de contenido global (Descubrir), red de contactos (Siguiendo) y sugerencias inteligentes (Para ti) basadas en afinidad de perfil.
+* **Interacciones en tiempo real:** Sistema de *Likes* y comentarios integrados en cada publicación.
+* **Publicaciones ricas:** Creación de posts con texto (límite de 280 caracteres con indicador visual) y carga de imágenes desde la galería del dispositivo.
+* **Pull-to-refresh:** Carga bajo demanda de nuevo contenido.
 
----
+### 💬 Mensajería Avanzada (Chats)
+* **Conversaciones activas:** Bandeja de entrada con indicadores de mensajes no leídos.
+* **Interacción fluida:** Soporte para enviar texto e imágenes.
+* **Acciones de mensaje:** Gestos nativos como *swipe-to-reply* (deslizar para responder), además de edición, eliminación y reacciones con emojis (❤️ 😂 😮 👍) mediante pulsación larga.
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+### 🎨 Personalización y Estado Global
+* **Theming Dinámico:** Modificación del "Color de Acento" que propaga el cambio de estado a toda la UI de la aplicación de forma instantánea.
+* **Fondos personalizados:** Soporte para diferentes temas en las salas de chat (Oscuro, Océano, Galaxia).
 
----
+### 👤 Gestión de Perfil
+* Edición completa de biografía, avatar, profesión y *Vibe* mediante un sistema de etiquetas visuales.
+* Buscador de usuarios integrado para explorar la red y gestionar seguimientos.
 
-# Guía de Usuario: Nexus 11
+## 🛠️ Stack Tecnológico
+* **Lenguaje:** Kotlin
+* **Core & UI:** Kotlin Multiplatform + Compose Multiplatform
+* **Arquitectura:** Patrón de diseño orientado a la separación de responsabilidades y gestión reactiva del estado de la UI.
 
-**Credenciales de Acceso para Evaluación:**
+## 🚀 Cómo ejecutar el proyecto
 
-* **Email:** `profe@gmail.com`
-* **Contraseña:** `123456`
+Este proyecto contiene módulos compartidos (`/composeApp` con `commonMain`, `iosMain`, `jvmMain`) y el punto de entrada nativo para Apple (`/iosApp`).
 
----
+### Compilar y ejecutar en Android
+Puedes usar la configuración de ejecución de tu IDE (Android Studio / IntelliJ) o compilar desde la terminal:
 
-## 1. Inicio de Sesión
-
-Al abrir la aplicación, encontrarás la pantalla de bienvenida.
-
-1. Introduce las credenciales indicadas arriba.
-2. Pulsa **"ENTRAR"**.
-3. *Nota:* La aplicación recordará tu sesión. Si cierras la app y vuelves a abrirla, entrarás automáticamente al Feed principal.
-
-## 2. Pantalla Principal (Feed)
-
-Aquí verás la actividad de la red social. Tienes 3 pestañas superiores para filtrar el contenido:
-
-* **Descubrir:** Muestra todas las publicaciones de la red en tiempo real.
-* **Siguiendo:** Solo verás los posts de las personas a las que sigues.
-* **Para ti:** Un filtro inteligente que te sugiere contenido basado en coincidencias de tu perfil (mismo oficio o hobbies).
-
-**Interacciones:**
-
-* **Like:** Toca el corazón ❤️ para dar "Me gusta" (verás el contador subir).
-* **Comentar:** Escribe en la barra inferior de cada tarjeta y pulsa el avión de papel ✈️ para comentar.
-* **Actualizar:** Desliza el dedo hacia abajo (*pull-to-refresh*) para cargar nuevos posts.
-
-## 3. Crear una Publicación
-
-Pulsa el botón **"+" (Crear)** en la barra inferior.
-
-1. **Escribe:** Cuéntanos qué piensas (máximo 280 caracteres). El círculo de progreso te avisará si te excedes.
-2. **Añade Foto:** Toca el icono de imagen para abrir la galería de tu móvil y selecciona una foto.
-3. **Publicar:** Pulsa el botón superior derecho. Tu post aparecerá inmediatamente en el Feed.
-
-## 4. Perfil de Usuario
-
-Ve a la pestaña **"Perfil"** (icono de persona).
-
-* **Tu información:** Verás tus estadísticas (Posts, Seguidores, Siguiendo).
-* **Editar Foto:** Toca tu foto de perfil para cambiarla por una de tu galería.
-* **Editar Datos:** Pulsa "Editar Perfil" para cambiar tu Biografía, Profesión, Hobby o Estado (Vibe). Esto generará etiquetas de colores en tu perfil.
-* **Tus Posts:** Abajo verás tus fotos y textos organizados.
-
-**Buscador:** Pulsa la lupa 🔍 arriba a la derecha para buscar a otros usuarios (ej. busca "alumno"). Al entrar en su perfil podrás:
-
-* **Seguir/Dejar de Seguir:** Botón azul grande.
-* **Mensaje:** Botón gris para ir al chat privado.
-
-## 5. Chats y Mensajería
-
-Ve a la pestaña **"Chats"** (icono de bocadillo).
-
-* Verás tu lista de conversaciones activas con un punto azul si hay mensajes nuevos.
-* **Dentro del chat:**
-* Escribe mensajes de texto o envía fotos.
-* **Funciones Avanzadas:**
-* **Responder:** Desliza un mensaje hacia la derecha.
-* **Editar/Borrar:** Mantén pulsado un mensaje tuyo para ver el menú de opciones (Editar, Eliminar, Copiar).
-* **Reaccionar:** Mantén pulsado cualquier mensaje para añadir una reacción rápida (❤️ 😂 😮 👍).
-
-## 6. Personalización
-
-Esta es la función estrella. Desde tu **Perfil**, pulsa el icono de engranaje ⚙️ (Ajustes).
-
-1. Entra en **"Apariencia"**.
-2. **Color de Acento:** Elige cualquier color (Naranja, Rosa, Verde...). Verás que **toda la aplicación cambia de color al instante**.
-3. **Fondo de Chat:** Elige entre "Oscuro", "Océano" o "Galaxia" para tus conversaciones.
-
-## 7. Cerrar Sesión
-
-Si deseas salir, ve a **Perfil > Ajustes (⚙️)**, baja hasta el final y pulsa el botón rojo **"Cerrar Sesión"**. Esto borrará tus credenciales del dispositivo de forma segura.
+**macOS/Linux:**
+```bash
+./gradlew :composeApp:assembleDebug
